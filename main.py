@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 import os
 import logging
+import asyncio
 
 
 # Create the bot class, inheriting from commands.AutoShardedBot

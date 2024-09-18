@@ -1,4 +1,0 @@
-All txt files preceeded with . are not pushed to the github
-
-modules/ is used for general purpose libraries and functions
-cogs/ are used for discord bot specific functions

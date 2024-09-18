@@ -10,15 +10,16 @@ class Ping(commands.Cog):
             f"discord.cog.{self.__class__.__name__.lower()}"
         )
 
-    @commands.Cog.listener()
-    async def on_ready(self):
-        self.logger.info(f"{self.__class__.__name__} is loaded.")
-
-    @commands.command(pass_context=True)
+    @commands.command(name="ping", help="Shows the bot's latency.")
     async def ping(self, ctx):
-        message = f"⏱|** {round(self.bot.latency * 1000)} ms** Latency!"
+        message = f"⏱ {round(self.bot.latency * 1000)} ms Latency!"
+        embed = discord.Embed(
+            title="Ping",
+            description=message,
+            color=discord.Color.pink(),
+        )
         self.logger.info(message)
-        await ctx.send(message)
+        await ctx.send(embed=embed)
 
 
 async def setup(bot: commands.Bot):
