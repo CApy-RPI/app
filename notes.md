@@ -13,3 +13,4 @@ All txt files preceeded with . are not pushed to the github
 
 -   Help: Blue
 -   Ping: Pink
+-   Settings: Green

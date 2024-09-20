@@ -1,3 +1,5 @@
+# cogs.ping.py - displays the bot's latency (for testing)
+
 import discord
 import logging
 from discord.ext import commands

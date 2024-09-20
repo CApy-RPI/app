@@ -2,8 +2,11 @@ import discord
 from discord.ext import commands
 import os
 import logging
-import asyncio
+from dotenv import load_dotenv
+from modules.guild import GuildManager
 
+load_dotenv()
+guild_manager = GuildManager()
 
 # Create the bot class, inheriting from commands.AutoShardedBot
 class Bot(commands.AutoShardedBot):
@@ -11,6 +14,13 @@ class Bot(commands.AutoShardedBot):
         super().__init__(*args, **kwargs)
         self.logger = logging.getLogger("discord.main")
         self.logger.setLevel(logging.INFO)
+        
+    # Event that runs when the bot joins a new server
+    async def on_guild_join(self, guild: discord.Guild):
+        """Called when the bot joins a new guild (server)."""
+        guild_manager.add_guild(guild.id, guild.name)
+        self.logger.info(f"Added new guild: {guild.name}")
+        
 
     async def setup_hook(self):
         # Import all cogs from the 'cogs/' directory
@@ -45,11 +55,7 @@ class Bot(commands.AutoShardedBot):
 def main():
     bot = Bot(command_prefix="!", intents=discord.Intents.all())
 
-    with open(".creds.txt", "r") as file:
-        token = file.read().strip()
-
-    bot.run(token, reconnect=True)
-
+    bot.run(os.getenv("dev_bot_token"), reconnect=True)
 
 if __name__ == "__main__":
     main()

@@ -1,3 +1,6 @@
+#cogs/help.py - displays all available commands
+#             - displays help for a specific command
+
 import discord
 from discord.ext import commands
 
