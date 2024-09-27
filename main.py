@@ -1,13 +1,11 @@
-import discord
-from discord.ext import commands
 import os
+import discord
 import logging
+from discord.ext import commands
 from dotenv import load_dotenv
 from modules.guild import GuildManager
 from modules.email import Email
-
-load_dotenv()
-guild_manager = GuildManager()
+from modules.database import Database
 
 
 # Create the bot class, inheriting from commands.AutoShardedBot
@@ -17,11 +15,13 @@ class Bot(commands.AutoShardedBot):
         self.logger = logging.getLogger("discord.main")
         self.logger.setLevel(logging.INFO)
         self.email = Email()
+        self.database = Database()
+        self.guild_manager = GuildManager()
 
     # Event that runs when the bot joins a new server
     async def on_guild_join(self, guild: discord.Guild):
         """Called when the bot joins a new guild (server)."""
-        guild_manager.add_guild(guild.id, guild.name)
+        self.guild_manager.add_guild(guild.id, guild.name)
         self.logger.info(f"Added new guild: {guild.name}")
 
     async def setup_hook(self):
@@ -55,8 +55,8 @@ class Bot(commands.AutoShardedBot):
 
 
 def main():
+    load_dotenv()
     bot = Bot(command_prefix="!", intents=discord.Intents.all())
-
     bot.run(os.getenv("DEV_BOT_TOKEN"), reconnect=True)
 
 
