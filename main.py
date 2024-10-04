@@ -4,7 +4,7 @@ import logging
 from discord.ext import commands
 from dotenv import load_dotenv
 from modules.email import Email
-from modules.database import create_user, create_guild, get_user, get_guild
+from modules.database import Database
 
 
 # Create the bot class, inheriting from commands.AutoShardedBot
@@ -14,6 +14,7 @@ class Bot(commands.AutoShardedBot):
         self.logger = logging.getLogger("discord.main")
         self.logger.setLevel(logging.INFO)
         self.email = Email()
+        self.db = Database()
 
     # Event that runs when the bot joins a new server
     async def on_guild_join(self, guild: discord.Guild):

@@ -65,13 +65,6 @@ class Data:
         assert key in self.__data
         self.__data[key].append(value)
 
-    def commit(self):
-        """
-        Commit the current state of this Data object to the database.
-        """
-
-        Database().update(self)
-
     def __str__(self):
         """
         Return a string representation of this Data object as a JSON string.
@@ -132,64 +125,56 @@ class Database:
             data (Data): The Data object to update in the database.
         """
         if not self.get(data.get("type"), data.get("id")):
-            self.insert(data)
+            self.insert(data).execute()
         else:
             self.__client.table(data.get("type")).update({"data": str(data)}).eq(
                 "id", data.get("id")
             ).execute()
 
+    def create_user(self, id: int):
+        """
+        Create a new Data object for a user with the given ID.
 
-def create_user(id: int):
-    """
-    Create a new Data object for a user with the given ID.
+        Args:
+            id (int): The ID of the user.
 
-    Args:
-        id (int): The ID of the user.
+        Returns:
+            Data: The new Data object for the user.
+        """
+        return Data("user", id)
 
-    Returns:
-        Data: The new Data object for the user.
-    """
-    return Data("user", id)
+    def create_guild(self, id: int):
+        """
+        Create a new Data object for a guild with the given ID.
 
+        Args:
+            id (int): The ID of the guild.
 
-def create_guild(id: int):
-    """
-    Create a new Data object for a guild with the given ID.
+        Returns:
+            Data: The new Data object for the guild.
+        """
+        return Data("guild", id)
 
-    Args:
-        id (int): The ID of the guild.
+    def get_user(self, id: int):
+        """
+        Get the Data object for a user with the given ID.
 
-    Returns:
-        Data: The new Data object for the guild.
-    """
-    return Data("guild", id)
+        Args:
+            id (int): The ID of the user.
 
+        Returns:
+            Data: The Data object for the user.
+        """
+        return self.get("user", id)
 
-def get_user(id: int):
-    """
-    Get the Data object for a user with the given ID.
+    def get_guild(self, id: int):
+        """
+        Get the Data object for a guild with the given ID.
 
-    Args:
-        id (int): The ID of the user.
+        Args:
+            id (int): The ID of the guild.
 
-    Returns:
-        Data: The Data object for the user.
-    """
-    return Database().get("user", id)
-
-
-def get_guild(id: int):
-    """
-    Get the Data object for a guild with the given ID.
-
-    Args:
-        id (int): The ID of the guild.
-
-    Returns:
-        Data: The Data object for the guild.
-    """
-    return Database().get("guild", id)
-
-
-# TODO move create and get into db s.t. a new db doesn't have to be created each time
-# TODO use db in main to access and change data
+        Returns:
+            Data: The Data object for the guild.
+        """
+        return self.get("guild", id)
