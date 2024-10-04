@@ -1,5 +1,8 @@
 {
     "type": "guild",
     "id": null,
-    "users": []
+    "users": [],
+    "events": [],
+    "updated_at": "",
+    "created_at": ""
 }

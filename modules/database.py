@@ -2,7 +2,22 @@
 
 import os
 import json
+import pytz
+from datetime import datetime
 from supabase import create_client
+
+
+def now():
+    """
+    Returns the current time in the America/New_York timezone in the format
+    %Y-%m-%d %H:%M:%S %Z %z.
+
+    Returns:
+        The current time in the America/New_York timezone.
+    """
+    eastern = pytz.timezone("America/New_York")
+    eastern_time = datetime.now(eastern)
+    return eastern_time.strftime("%Y-%m-%d %H:%M:%S %Z %z")
 
 
 class Data:
@@ -27,6 +42,7 @@ class Data:
             with open(file_path, "r") as f:
                 self.__data = json.load(f)
                 self.__data["id"] = id
+                self.__data["created_at"] = now()
         else:
             self.__data = json.load(data)
 
@@ -53,6 +69,7 @@ class Data:
         """
         assert key in self.__data
         self.__data[key] = value
+        self.__data["updated_at"] = now()
 
     def append(self, key, value):
         """
@@ -64,6 +81,7 @@ class Data:
         """
         assert key in self.__data
         self.__data[key].append(value)
+        self.__data["updated_at"] = now()
 
     def __str__(self):
         """
@@ -87,6 +105,20 @@ class Database:
             os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_KEY")
         )
 
+    def create(self, type: str, id: int):
+        """
+        Create a new Data object with the given type and id.
+
+        Args:
+            type (str): The type of data to create (e.g. user, guild).
+            id (int): The id of the data to create.
+
+        Returns:
+            Data: A new Data object with the given type and id.
+        """
+
+        return Data(type, id)
+
     def get(self, table_name: str, id: int):
         """
         Retrieve a row from the specified table by the given ID.
@@ -97,15 +129,23 @@ class Database:
 
         Returns:
             Data: The retrieved row from the database represented as a Data object.
-            -1: If the retrieval fails.
         """
-        return Data(
-            table_name,
-            id,
-            self.__client.table(table_name).select("data").eq("id", id).execute().data,
+        response = (
+            self.__client.table(table_name).select("data").eq("id", id).execute().data
+        )
+        print(response[0])
+
+        return (
+            Data(
+                table_name,
+                id,
+                response[0],
+            )
+            if response
+            else None
         )
 
-    def insert(self, data: Data):
+    def __insert(self, data: Data):
         """
         Insert a new row into the database with the given Data object.
 
@@ -113,7 +153,9 @@ class Database:
             data (Data): The Data object to insert into the database.
         """
 
-        self.__client.table(data.get("type")).insert({"data": str(data)}).execute()
+        self.__client.table(data.get("type")).insert(
+            {"id": data.get("id"), "data": str(data)}
+        ).execute()
 
     def update(self, data: Data):
         """
@@ -124,57 +166,13 @@ class Database:
         Args:
             data (Data): The Data object to update in the database.
         """
-        if not self.get(data.get("type"), data.get("id")):
-            self.insert(data).execute()
+        a = self.get(data.get("type"), data.get("id"))
+        if not a:
+            self.__insert(data)
         else:
             self.__client.table(data.get("type")).update({"data": str(data)}).eq(
                 "id", data.get("id")
             ).execute()
 
-    def create_user(self, id: int):
-        """
-        Create a new Data object for a user with the given ID.
 
-        Args:
-            id (int): The ID of the user.
-
-        Returns:
-            Data: The new Data object for the user.
-        """
-        return Data("user", id)
-
-    def create_guild(self, id: int):
-        """
-        Create a new Data object for a guild with the given ID.
-
-        Args:
-            id (int): The ID of the guild.
-
-        Returns:
-            Data: The new Data object for the guild.
-        """
-        return Data("guild", id)
-
-    def get_user(self, id: int):
-        """
-        Get the Data object for a user with the given ID.
-
-        Args:
-            id (int): The ID of the user.
-
-        Returns:
-            Data: The Data object for the user.
-        """
-        return self.get("user", id)
-
-    def get_guild(self, id: int):
-        """
-        Get the Data object for a guild with the given ID.
-
-        Args:
-            id (int): The ID of the guild.
-
-        Returns:
-            Data: The Data object for the guild.
-        """
-        return self.get("guild", id)
+# TODO supabase returns a dictionary by default, change all of db to use the returned dict and not a json
