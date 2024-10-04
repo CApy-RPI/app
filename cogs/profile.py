@@ -49,7 +49,7 @@ class Profile(commands.Cog):
         # Create an embed with a welcome message
         dm_embed = discord.Embed(
             title="Welcome to the RPI Discord!",
-            description="We're excited to have you here! Before we get started, we need some information from you to create your profile. Please answer the following questions with your information.",
+            description="We're excited to have you here! Before we get started, we need some information from you to create your profile. Please answer the following questions with your information. (If you made any mistakes, you can update it after completing vertification using the !update command.)",
             color=discord.Color.purple(),
         )
         # Send the welcome message to the user
@@ -95,7 +95,7 @@ class Profile(commands.Cog):
         profile_embed.set_thumbnail(url=ctx.author.display_avatar.url)
         profile_embed.add_field(name="First Name", value=first_name, inline=True)
         profile_embed.add_field(name="Last Name", value=last_name, inline=True)
-        profile_embed.add_field(name="Major", value=major, inline=True)
+        profile_embed.add_field(name="Major", value=", ".join(major), inline=True)
         profile_embed.add_field(name="Graduation Year", value=grad_year, inline=True)
         profile_embed.add_field(name="RPI Email", value=rpi_email, inline=True)
         profile_embed.add_field(name="RPI RIN", value=rpi_rin, inline=True)
@@ -162,16 +162,26 @@ class Profile(commands.Cog):
             msg = await self.bot.wait_for(
                 "message", check=lambda message: message.author == user and isinstance(message.channel, discord.DMChannel), timeout=60
             )
-            major = int(msg.content)-1
-            
-            if major is None:
-                return None
-            
-            if 0 <= major < len(self.major_list):
-                await user.send(f"Your major: {self.major_list[major]}")
-                return self.major_list[major]
+
+            # Split the message via commas to determine the selected majors
+            major_choices = msg.content.split(',')
+            major_choices = [choice.strip() for choice in major_choices]
+            selected_majors = []
+            valid = True
+
+            # Check if the user's reply is a valid major
+            for choice in major_choices:
+                if choice.isdigit() and 0 <= int(choice)-1 < len(self.major_list):
+                    selected_majors.append(self.major_list[int(choice)-1])
+                else:
+                    valid = False
+                    break
+
+            if valid:
+                await user.send(f"Your selected majors: {', '.join(selected_majors)}")
+                return selected_majors
             else:
-                await user.send(f"{self.major_list[major]} is not a valid major. Please enter a valid major.")
+                await user.send(f"{msg.content} is not a valid major. Please enter a valid major.")
 
     async def ask_email(self, user):
         """
@@ -180,7 +190,7 @@ class Profile(commands.Cog):
         Return None if the user doesn't respond in time or if the response is not a valid email.
         """
         while(True):
-            rpi_email = await self.ask_question(user, "What is your RPI email?")
+            rpi_email = await self.ask_question(user, "What is your RPI email? Please type our your full email address! (Example: smithj23@rpi.edu)")
             if rpi_email is None:
                 return None
 
@@ -196,7 +206,7 @@ class Profile(commands.Cog):
         Return None if the user doesn't respond in time or if the response is not a valid RIN.
         """
         while(True):
-            rin = await self.ask_question(user, "What is your RIN?")
+            rin = await self.ask_question(user, "What is your RIN? (Example: 123456789)")
             if rin is None:
                 return None
             
