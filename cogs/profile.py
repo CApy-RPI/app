@@ -1,10 +1,12 @@
 import discord
 import logging
 from discord.ext import commands
+from modules.database import Database
 
 class Profile(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self.db = Database()
         self.logger = logging.getLogger(
             f"discord.cog.{self.__class__.__name__.lower()}"
         )
@@ -100,6 +102,18 @@ class Profile(commands.Cog):
         profile_embed.add_field(name="RPI Email", value=rpi_email, inline=True)
         profile_embed.add_field(name="RPI RIN", value=rpi_rin, inline=True)
 
+        # Save the collected profile information to the database
+        
+        user = self.bot.db.get_user(ctx.author.id)
+        if(user == -1 or not user):
+            user = self.bot.db.create_user(ctx.author.id)
+        user.set("first_name", first_name)
+        user.set("last_name", last_name)
+        user.set("major", major)
+        user.set("graduation_year", grad_year)
+        user.set("school_email", rpi_email)
+        user.set("student_id", rpi_rin)
+        self.bot.db.update(user)
         # Send the profile back to the user for confirmation
         await ctx.author.send(embed=profile_embed)
 
