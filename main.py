@@ -19,8 +19,21 @@ class Bot(commands.AutoShardedBot):
     # Event that runs when the bot joins a new server
     async def on_guild_join(self, guild: discord.Guild):
         """Called when the bot joins a new guild (server)."""
-        self.guild_manager.add_guild(guild.id, guild.name)
-        self.logger.info(f"Added new guild: {guild.name}")
+
+        # Check if guild id exists within guild table column id
+        existing_guild = self.db.get_data("guild", guild.id)
+
+        # If not, insert new guild into guild table
+        if not existing_guild:
+            new_guild_data = self.db.create_data("guild", guild.id)
+            self.db.update_data(new_guild_data)
+            self.logger.info(
+                f"Inserted New Guild: {guild.name} (ID: {guild.id}) into database"
+            )
+        else:
+            self.logger.info(
+                f"Joined Guild: {guild.name} (ID: {guild.id}) already exists in database"
+            )
 
     async def setup_hook(self):
         # Import all cogs from the 'cogs/' directory

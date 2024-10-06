@@ -44,9 +44,9 @@ class Data:
                 self.__data["id"] = id
                 self.__data["created_at"] = now()
         else:
-            self.__data = json.load(data)
+            self.__data = json.loads(data["data"])
 
-    def get(self, key):
+    def get_value(self, key):
         """
         Return the value associated with the given key.
 
@@ -58,7 +58,7 @@ class Data:
         """
         return self.__data[key]
 
-    def set(self, key, value):
+    def set_value(self, key, value):
         """
         Set the value associated with the given key.
 
@@ -71,7 +71,7 @@ class Data:
         self.__data[key] = value
         self.__data["updated_at"] = now()
 
-    def append(self, key, value):
+    def append_value(self, key, value):
         """
         Append a value to the end of the list associated with the given key.
 
@@ -79,6 +79,7 @@ class Data:
             key (str): The key to append the value to.
             value (object): The value to append.
         """
+
         assert key in self.__data
         self.__data[key].append(value)
         self.__data["updated_at"] = now()
@@ -105,7 +106,7 @@ class Database:
             os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_KEY")
         )
 
-    def create(self, type: str, id: int):
+    def create_data(self, type: str, id: int):
         """
         Create a new Data object with the given type and id.
 
@@ -119,7 +120,7 @@ class Database:
 
         return Data(type, id)
 
-    def get(self, table_name: str, id: int):
+    def get_data(self, table_name: str, id: int):
         """
         Retrieve a row from the specified table by the given ID.
 
@@ -133,7 +134,6 @@ class Database:
         response = (
             self.__client.table(table_name).select("data").eq("id", id).execute().data
         )
-        print(response[0])
 
         return (
             Data(
@@ -147,17 +147,19 @@ class Database:
 
     def __insert(self, data: Data):
         """
+        DO NOT USE THIS FUNCTION PUBLICLY
+
         Insert a new row into the database with the given Data object.
 
         Args:
             data (Data): The Data object to insert into the database.
         """
 
-        self.__client.table(data.get("type")).insert(
-            {"id": data.get("id"), "data": str(data)}
+        self.__client.table(data.get_value("type")).insert(
+            {"id": data.get_value("id"), "data": str(data)}
         ).execute()
 
-    def update(self, data: Data):
+    def update_data(self, data: Data):
         """
         Update a row in the database with the given Data object.
 
@@ -166,12 +168,12 @@ class Database:
         Args:
             data (Data): The Data object to update in the database.
         """
-        a = self.get(data.get("type"), data.get("id"))
+        a = self.get_data(data.get_value("type"), data.get_value("id"))
         if not a:
             self.__insert(data)
         else:
-            self.__client.table(data.get("type")).update({"data": str(data)}).eq(
-                "id", data.get("id")
+            self.__client.table(data.get_value("type")).update({"data": str(data)}).eq(
+                "id", data.get_value("id")
             ).execute()
 
 
