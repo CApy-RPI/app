@@ -104,16 +104,16 @@ class Profile(commands.Cog):
 
         # Save the collected profile information to the database
         
-        user = self.bot.db.get_user(ctx.author.id)
+        user = self.bot.db.get_data("user",ctx.author.id)
         if(user == -1 or not user):
-            user = self.bot.db.create_user(ctx.author.id)
-        user.set("first_name", first_name)
-        user.set("last_name", last_name)
-        user.set("major", major)
-        user.set("graduation_year", grad_year)
-        user.set("school_email", rpi_email)
-        user.set("student_id", rpi_rin)
-        self.bot.db.update(user)
+            user = self.bot.db.create_data("user",ctx.author.id)
+        user.set_value("first_name", first_name)
+        user.set_value("last_name", last_name)
+        #user.set_value("major", major)
+        user.set_value("graduation_year", grad_year)
+        user.set_value("school_email", rpi_email)
+        user.set_value("student_id", rpi_rin)
+        self.bot.db.update_data(user)
         # Send the profile back to the user for confirmation
         await ctx.author.send(embed=profile_embed)
 

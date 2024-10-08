@@ -48,7 +48,7 @@ class Update(commands.Cog):
     async def update(self, ctx):
 
         # Create an embed with a welcome message
-        updatedUser = self.bot.db.get_user(ctx.author.id)
+        updatedUser = self.bot.db.get_data(ctx.author.id)
         if(updatedUser == -1 or updatedUser == None or not updatedUser):
             await ctx.send("You do not have a profile yet! Please use the !profile command to create one.")
             return
@@ -75,20 +75,20 @@ class Update(commands.Cog):
                     break
                 if(aspect == "First Name"):
                     new_value = await self.ask_question(ctx.author, "What is your updated first name? (Example: John)")
-                    updatedUser.set("first_name", new_value)
+                    updatedUser.set_value("first_name", new_value)
                 if(aspect == "Last Name"):
                     new_value = await self.ask_question(ctx.author, "What is your updated last name? (Example: Smith)")
-                    updatedUser.set("last_name", new_value)
+                    updatedUser.set_value("last_name", new_value)
                 if(aspect == "Major"):
                     new_value = await Profile.ask_major(self, ctx.author)
-                    updatedUser.set("major", new_value)
+                    updatedUser.set_value("major", new_value)
                 if(aspect == "Graduation Year"):
                     new_value = await Profile.ask_graduation_year(self, ctx.author)
-                    updatedUser.set("grad_year", new_value)
+                    updatedUser.set_value("grad_year", new_value)
                 if(aspect == "RIN"):
-                    updatedUser.set("rin", {await self.ask_question(ctx.author, "What is your updated RIN? (Example: 123456789)")})
+                    updatedUser.set_value("rin", {await self.ask_question(ctx.author, "What is your updated RIN? (Example: 123456789)")})
                 if(aspect == "RPI Email"):
-                    updatedUser.set("rpi_email",{await self.ask_email(ctx.author)})
+                    updatedUser.set_value("rpi_email",{await self.ask_email(ctx.author)})
 
                 await ctx.send(f"Your {aspect} has been updated.")
 
@@ -96,7 +96,7 @@ class Update(commands.Cog):
                 await ctx.send("Invalid choice. Please enter a number between 1 and {}".format(len(aspects)))
             #self.bot.db.update(updatedUser)
         await self.show_profile(ctx, updatedUser)
-        self.bot.db.update(updatedUser)
+        self.bot.db.update_data(updatedUser)
 
 
 
