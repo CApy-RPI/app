@@ -1,0 +1,13 @@
+{
+    "type": "event",
+    "id": null,
+    "guild_id": null,
+    "name": "",
+    "date": "",
+    "time": "",
+    "location": "",
+    "description": "",
+    "users": [],
+    "updated_at": "",
+    "created_at": ""
+}
