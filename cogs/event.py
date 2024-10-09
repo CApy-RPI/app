@@ -1,8 +1,7 @@
 import discord
+from datetime import datetime, timezone
 from discord.ext import commands
 from modules.database import Database
-
-# Change this to fetch data from some sort of database
 
 
 class EventCog(commands.Cog):
@@ -36,8 +35,9 @@ class EventCog(commands.Cog):
         )
 
         for event in guild_events:
-            event_details = f"{event['date']} at {event['time']}"
-            embed.add_field(name=event["name"], value=event_details, inline=False)
+            event_data = self.db.get_data("event", event)
+            event_details = f"{event_data.get_value("date")} at {event_data.get_value("time")}"
+            embed.add_field(name = event_data.get_value("name"), value = event_details, inline=False)
 
         # Send the embed message
         await ctx.send(embed=embed)
@@ -49,18 +49,24 @@ class EventCog(commands.Cog):
     )
     async def add_event(self, ctx, name: str, date: str, *time):
         """Creates event, adds to guild events list, prints confirmation embed"""
-        # Fetch existing guild data or create new if it doesn't exist
+
         guild_data = self.db.get_data("guild", ctx.guild.id)
-        if not guild_data:
-            guild_data = self.db.create_data("guild", ctx.guild.id)
-            self.db.update_data(guild_data)
 
-        # Add the event to the guild events list
+        # Generate a unique integer ID for the new event using UTC timestamp
+        new_event_id = int(datetime.now(timezone.utc).timestamp() * 1000)
         time_str = " ".join(time)
-        new_event = {"name": name, "date": date, "time": time_str}
-        guild_data.append_value("events", new_event)
+        new_event_data = self.db.create_data("event", new_event_id)
+        new_event_data.set_value("name", name)
+        new_event_data.set_value("date", date)
+        new_event_data.set_value("id", new_event_id)
+        new_event_data.set_value("time", time_str)
+        new_event_data.set_value("guild_id", ctx.guild.id)
+        self.db.update_data(new_event_data)
 
-        # Update the database with the new event
+        # Add the new event ID to the guild's events list
+        guild_data.append_value("events", new_event_id)
+
+        # Update the guild table with the new event
         self.db.update_data(guild_data)
 
         # Create an embed to confirm the event was added
@@ -71,6 +77,7 @@ class EventCog(commands.Cog):
         )
         embed.add_field(name="Date", value=date, inline=True)
         embed.add_field(name="Time", value=time_str, inline=True)
+        embed.add_field(name="Event ID", value=str(new_event_id), inline=False)
 
         # Send the embed confirmation message
         await ctx.send(embed=embed)
@@ -78,6 +85,7 @@ class EventCog(commands.Cog):
     # Command to clear all events
     @commands.command(name="clear_events", help="Clears all upcoming events")
     async def clear_events(self, ctx):
+        """implementation in progress !!!"""
         user_events.clear()
         embed = discord.Embed(
             title="Events Cleared",
