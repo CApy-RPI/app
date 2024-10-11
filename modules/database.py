@@ -27,6 +27,39 @@ def now():
     return eastern_time.strftime("%Y-%m-%d %H:%M:%S %Z %z")
 
 
+def format_time(_date, _time):
+    """
+    Formats the given date and time into the same format as the now() function.
+
+    Args:
+        date (str): The date in the format %Y-%m-%d.
+        time (str): The time in the format %H:%M:%S.
+
+    Returns:
+        str: The formatted time in the format %Y-%m-%d %H:%M:%S %Z %z.
+    """
+    return f"{_date} {_time} {pytz.timezone('America/New_York').tzname(datetime.now())} {datetime.now().strftime('%z')}"
+
+
+def format_time_extended(_yr, _mo, _day, _hr, _min, _sec):
+    """
+    Formats the given year, month, day, hour, minute, and second into the same
+    format as the now() function.
+
+    Args:
+        yr (int): The year.
+        mo (int): The month.
+        day (int): The day of the month.
+        hr (int): The hour of the day.
+        min (int): The minute of the hour.
+        sec (int): The second of the minute.
+
+    Returns:
+        str: The formatted time in the format %Y-%m-%d %H:%M:%S %Z %z.
+    """
+    return format_time(f"{_yr}-{_mo}-{_day} {_hr}:{_min}:{_sec}")
+
+
 class Data:
     def __init__(self, _type: str, _id: int, _data: str = ""):
         """
@@ -389,7 +422,7 @@ class Database:
             {"is_deleted": True, "deleted_at": now()}
         ).eq("id", _id).execute()
 
-    def hard_delete(self, _table_name: str, _id: int):
+    def hard_delete(self, _table_name: str, _id: int, _warn_override: bool = False):
         """
         Permanently delete a record from the database.
 
@@ -397,6 +430,11 @@ class Database:
             _table_name (str): The table name to delete from.
             _id (int): The ID of the record to be hard deleted.
         """
+        if not _warn_override:
+            raise ValueError(
+                "Unless you are absolutely sure you want to delete FOREVER, use soft_delete() instead. Otherwise, pass True to _warn_override."
+            )
+
         self.__client.table(_table_name).delete().eq("id", _id).execute()
 
     def restore(self, _table_name: str, _id: int):
@@ -423,7 +461,9 @@ class Database:
             {"is_deleted": True, "deleted_at": now()}
         ).in_("id", _ids).execute()
 
-    def bulk_hard_delete(self, _table_name: str, _ids: list[int]):
+    def bulk_hard_delete(
+        self, _table_name: str, _ids: list[int], _warn_override: bool = False
+    ):
         """
         Permanently delete multiple records from the database.
 
@@ -431,6 +471,10 @@ class Database:
             _table_name (str): The table name to delete from.
             ids (list[int]): The IDs of the records to be hard deleted.
         """
+        if not _warn_override:
+            raise ValueError(
+                "Unless you are absolutely sure you want to delete FOREVER, use soft_delete() instead. Otherwise, pass True to _warn_override."
+            )
         self.__client.table(_table_name).delete().in_("id", _ids).execute()
 
     def bulk_restore(self, _table_name: str, _ids: list[int]):
