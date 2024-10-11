@@ -1,31 +1,31 @@
-"Aeronautical Engineering",
-"Applied Physics",
-"Architecture",
-"Biology",
-"Biomedical Engineering",
-"Business Analytics",
-"Business and Management",
-"Chemical Engineering",
-"Chemistry",
-"Civil Engineering",
-"Cognitive Science",
-"Computer and Systems Engineering",
-"Computer Science",
-"Economics",
-"Electrical Engineering",
-"Environmental Engineering",
-"Environmental Science",
-"Games and Simulation Arts and Sciences",
-"Geology",
-"Industrial and Management Engineering",
-"Information Technology and Web Science",
-"Materials Engineering",
-"Mathematics",
-"Mechanical Engineering",
-"Music",
-"Nuclear Engineering",
-"Philosophy",
-"Physics",
-"Psychology",
-"Science, Technology, and Society",
-"Sustainability Studies",
+Aeronautical Engineering
+Applied Physics
+Architecture
+Biology
+Biomedical Engineering
+Business Analytics
+Business and Management
+Chemical Engineering
+Chemistry
+Civil Engineering
+Cognitive Science
+Computer and Systems Engineering
+Computer Science
+Economics
+Electrical Engineering
+Environmental Engineering
+Environmental Science
+Games and Simulation Arts and Sciences
+Geology
+Industrial and Management Engineering
+Information Technology and Web Science
+Materials Engineering
+Mathematics
+Mechanical Engineering
+Music
+Nuclear Engineering
+Philosophy
+Physics
+Psychology
+Science Technology and Society
+Sustainability Studies

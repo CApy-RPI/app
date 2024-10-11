@@ -10,45 +10,25 @@ class Update(commands.Cog):
         self.logger = logging.getLogger(
             f"discord.cog.{self.__class__.__name__.lower()}"
         )
-        self.major_list = [
-                "Aeronautical Engineering",
-                "Applied Physics",
-                "Architecture",
-                "Biology",
-                "Biomedical Engineering",
-                "Business Analytics",
-                "Business and Management",
-                "Chemical Engineering",
-                "Chemistry",
-                "Civil Engineering",
-                "Cognitive Science",
-                "Computer and Systems Engineering",
-                "Computer Science",
-                "Economics",
-                "Electrical Engineering",
-                "Environmental Engineering",
-                "Environmental Science",
-                "Games and Simulation Arts and Sciences",
-                "Geology",
-                "Industrial and Management Engineering",
-                "Information Technology and Web Science",
-                "Materials Engineering",
-                "Mathematics",
-                "Mechanical Engineering",
-                "Music",
-                "Nuclear Engineering",
-                "Philosophy",
-                "Physics",
-                "Psychology",
-                "Science, Technology, and Society",
-                "Sustainability Studies",
-            ]
+        self.major_list = self.load_major_list()
+        
+    def load_major_list(self):
+        """
+        Loads the list of majors from the majors.txt file.
+        """
+        try:
+            with open("resources/majors.txt", "r") as f:
+                major_list = [line.strip() for line in f.readlines()]
+                return major_list
+        except FileNotFoundError:
+            self.logger.error("majors.txt not found")
+            return []
 
     @commands.command(name="update", help="Update your profile with new information.")
     async def update(self, ctx):
 
         # Create an embed with a welcome message
-        updatedUser = self.bot.db.get_data(ctx.author.id)
+        updatedUser = self.bot.db.get_data("user", ctx.author.id)
         if(updatedUser == -1 or updatedUser == None or not updatedUser):
             await ctx.send("You do not have a profile yet! Please use the !profile command to create one.")
             return
@@ -74,34 +54,47 @@ class Update(commands.Cog):
                     await ctx.send("Exiting update page.")
                     break
                 if(aspect == "First Name"):
+                    await ctx.send("Your previous response was: " + updatedUser.get_value("first_name"))
                     new_value = await self.ask_question(ctx.author, "What is your updated first name? (Example: John)")
                     updatedUser.set_value("first_name", new_value)
-                if(aspect == "Last Name"):
+                elif(aspect == "Last Name"):
+                    await ctx.send("Your previous response was: " + updatedUser.get_value("last_name"))
                     new_value = await self.ask_question(ctx.author, "What is your updated last name? (Example: Smith)")
                     updatedUser.set_value("last_name", new_value)
-                if(aspect == "Major"):
+                elif(aspect == "Major"):
+                    await ctx.send("Your previous response was: " + ", ".join(updatedUser.get_value("major")))
                     new_value = await Profile.ask_major(self, ctx.author)
                     updatedUser.set_value("major", new_value)
-                if(aspect == "Graduation Year"):
+                elif(aspect == "Graduation Year"):
+                    await ctx.send("Your previous response was: " + updatedUser.get_value("graduation_year"))
                     new_value = await Profile.ask_graduation_year(self, ctx.author)
-                    updatedUser.set_value("grad_year", new_value)
-                if(aspect == "RIN"):
-                    updatedUser.set_value("rin", {await self.ask_question(ctx.author, "What is your updated RIN? (Example: 123456789)")})
-                if(aspect == "RPI Email"):
-                    updatedUser.set_value("rpi_email",{await self.ask_email(ctx.author)})
+                    updatedUser.set_value("graduation_year", new_value)
+                elif(aspect == "RIN"):
+                    await ctx.send("Your previous response was: " + updatedUser.get_value("student_id"))
+                    new_value = await Profile.ask_rin(self, ctx.author)
+                    updatedUser.set_value("student_id", new_value)
+                elif(aspect == "RPI Email"):
+                    await ctx.send("Your previous response was: " + updatedUser.get_value("school_email"))
+                    new_value = await Profile.ask_email(self, ctx.author)
+                    updatedUser.set_value("school_email", new_value)
 
                 await ctx.send(f"Your {aspect} has been updated.")
 
             else:
                 await ctx.send("Invalid choice. Please enter a number between 1 and {}".format(len(aspects)))
-            #self.bot.db.update(updatedUser)
         await self.show_profile(ctx, updatedUser)
         self.bot.db.update_data(updatedUser)
 
-
-
-
     async def user_choice(self, user):
+        """
+        Asks the user to select an aspect of their profile to update.
+
+        :param user: The user to ask.
+        :type user: discord.User
+        :return: The user's response.
+        :rtype: str
+        :raises discord.TimeoutError: The user took too long to respond.
+        """
         try:
             await user.send("What aspect do you want to update?")
 
@@ -145,13 +138,13 @@ class Update(commands.Cog):
             description="Here is the information you provided:",
             color=discord.Color.purple(),
         )
-
-        embed.add_field(name="First Name", value=user_profile.get("first_name"), inline=False)
-        embed.add_field(name="Last Name", value=user_profile.get("last_name"), inline=False)
-        embed.add_field(name="Major", value=user_profile.get("major"), inline=False)
-        embed.add_field(name="Graduation Year", value=user_profile.get("graduation_year"), inline=False)
-        embed.add_field(name="RPI Email", value=user_profile.get("school_email"), inline=False)
-        embed.add_field(name="RIN", value=user_profile.get("student_id"), inline=False)
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
+        embed.add_field(name="First Name", value=user_profile.get_value("first_name"), inline=True)
+        embed.add_field(name="Last Name", value=user_profile.get_value("last_name"), inline=True)
+        embed.add_field(name="Major", value=", ".join(user_profile.get_value("major")), inline=True)
+        embed.add_field(name="Graduation Year", value=user_profile.get_value("graduation_year"), inline=True)
+        embed.add_field(name="RPI Email", value=user_profile.get_value("school_email"), inline=True)
+        embed.add_field(name="RIN", value=user_profile.get_value("student_id"), inline=True)
 
         await ctx.send(embed=embed)
 

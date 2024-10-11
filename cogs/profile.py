@@ -10,40 +10,17 @@ class Profile(commands.Cog):
         self.logger = logging.getLogger(
             f"discord.cog.{self.__class__.__name__.lower()}"
         )
+        self.major_list = self.load_major_list()
 
-        self.major_list = [
-            "Aeronautical Engineering",
-            "Applied Physics",
-            "Architecture",
-            "Biology",
-            "Biomedical Engineering",
-            "Business Analytics",
-            "Business and Management",
-            "Chemical Engineering",
-            "Chemistry",
-            "Civil Engineering",
-            "Cognitive Science",
-            "Computer and Systems Engineering",
-            "Computer Science",
-            "Economics",
-            "Electrical Engineering",
-            "Environmental Engineering",
-            "Environmental Science",
-            "Games and Simulation Arts and Sciences",
-            "Geology",
-            "Industrial and Management Engineering",
-            "Information Technology and Web Science",
-            "Materials Engineering",
-            "Mathematics",
-            "Mechanical Engineering",
-            "Music",
-            "Nuclear Engineering",
-            "Philosophy",
-            "Physics",
-            "Psychology",
-            "Science, Technology, and Society",
-            "Sustainability Studies",
-        ]
+
+    def load_major_list(self):
+        try:
+            with open("resources/majors.txt", "r") as f:
+                major_list = [line.strip() for line in f.readlines()]
+                return major_list
+        except FileNotFoundError:
+            self.logger.error("majors.txt not found")
+            return []
 
     @commands.command(name="profile", help="Shows your profile.")
     async def profile(self, ctx):
@@ -56,8 +33,19 @@ class Profile(commands.Cog):
         )
         # Send the welcome message to the user
         await ctx.author.send(embed=dm_embed)
-
+        user = self.bot.db.get_data("user",ctx.author.id)
+        if(user == -1 or not user):
+            user = self.bot.db.create_data("user",ctx.author.id)
+        else:
+            await ctx.send("You already have a profile. Are you sure want to override it? If you do not please use the !update command.\n Type Y or N")
+            msg = await self.bot.wait_for("message", check=lambda message: message.author == ctx.author and isinstance(message.channel, discord.DMChannel))
+            if(msg.content.lower() == "y"):
+                user = self.bot.db.create_data("user",ctx.author.id)
+            else:
+                await ctx.send("Ok. The profile will not be overriden. If you want to update your profile please use the !update command.")
+                return
         # Ask for user's first name
+        await 3 # Wait for 3 seconds
         first_name = await self.ask_question(ctx.author, "What is your (preferred) first name? (Example: John)")
         if first_name is None:
             return  # Handle if user doesn't respond in time
@@ -104,12 +92,9 @@ class Profile(commands.Cog):
 
         # Save the collected profile information to the database
         
-        user = self.bot.db.get_data("user",ctx.author.id)
-        if(user == -1 or not user):
-            user = self.bot.db.create_data("user",ctx.author.id)
         user.set_value("first_name", first_name)
         user.set_value("last_name", last_name)
-        #user.set_value("major", major)
+        user.set_value("major", major)
         user.set_value("graduation_year", grad_year)
         user.set_value("school_email", rpi_email)
         user.set_value("student_id", rpi_rin)
@@ -180,6 +165,11 @@ class Profile(commands.Cog):
             # Split the message via commas to determine the selected majors
             major_choices = msg.content.split(',')
             major_choices = [choice.strip() for choice in major_choices]
+
+            # Check if the user's reply contains duplicate majors
+            if(len(major_choices) != len(set(major_choices))):
+                await user.send(f"{msg.content} contains duplicate majors. Please enter a valid major.")
+                continue
             selected_majors = []
             valid = True
 
@@ -228,6 +218,8 @@ class Profile(commands.Cog):
                 return rin
             else:
                 await user.send(f"{rin} is not a valid RIN. Please enter a valid RIN. Make sure it has 9 digits.")
-            
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(Profile(bot))
+
+
