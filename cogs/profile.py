@@ -26,6 +26,15 @@ class Profile(commands.Cog):
     async def profile(self, ctx):
 
         # Create an embed with a welcome message
+        """
+        This command will guide you through creating your profile. It will ask for your first name, last name, major, graduation year, RPI email, and RPI RIN. If you have already created a profile, it will ask you if you want to override it. If you do not want to override, it will allow you to exit the profile creation.
+
+        Args:
+            ctx (Context): The invocation context.
+
+        Returns:
+            None
+        """
         dm_embed = discord.Embed(
             title="Welcome to the RPI Discord!",
             description="We're excited to have you here! Before we get started, we need some information from you to create your profile. Please answer the following questions with your information. (If you made any mistakes, you can update it after completing vertification using the !update command.)",
@@ -38,14 +47,16 @@ class Profile(commands.Cog):
             user = self.bot.db.create_data("user",ctx.author.id)
         else:
             await ctx.send("You already have a profile. Are you sure want to override it? If you do not please use the !update command.\n Type Y or N")
-            msg = await self.bot.wait_for("message", check=lambda message: message.author == ctx.author and isinstance(message.channel, discord.DMChannel))
+            msg = await self.bot.wait_for(
+                "message", check=lambda message: message.author == ctx.author and isinstance(message.channel, discord.DMChannel)
+            )
             if(msg.content.lower() == "y"):
+                await ctx.send("Ok. The profile will be overriden. If you want to update your profile please use the !update command.")
                 user = self.bot.db.create_data("user",ctx.author.id)
             else:
                 await ctx.send("Ok. The profile will not be overriden. If you want to update your profile please use the !update command.")
                 return
         # Ask for user's first name
-        await 3 # Wait for 3 seconds
         first_name = await self.ask_question(ctx.author, "What is your (preferred) first name? (Example: John)")
         if first_name is None:
             return  # Handle if user doesn't respond in time
@@ -219,6 +230,124 @@ class Profile(commands.Cog):
             else:
                 await user.send(f"{rin} is not a valid RIN. Please enter a valid RIN. Make sure it has 9 digits.")
 
+
+    
+    @commands.command(name = "update", help = "Updates your profile.")
+    async def update(self, ctx):
+        # Create an embed with a welcome message
+        """
+        Updates your profile by allowing you to modify each individual aspect of your profile.
+        """
+        updatedUser = self.bot.db.get_data("user", ctx.author.id)
+        if(updatedUser == -1 or updatedUser == None or not updatedUser):
+            await ctx.send("You do not have a profile yet! Please use the !profile command to create one.")
+            return
+        
+        aspects = ["First Name", "Last Name", "Major", "Graduation Year", "RIN", "RPI Email", "Exit"]
+        aspects_embed = discord.Embed(
+            title="Update Page",
+            description="\n".join([f"{i+1}. {aspect}" for i, aspect in enumerate(aspects)]),
+            color=discord.Color.pink(),
+        )
+        while True:
+            await ctx.send(embed=aspects_embed)
+            user_choice = await self.user_choice(ctx.author)
+
+            if user_choice is None:
+                return  # Handle if user doesn't respond in time
+
+            if user_choice.isdigit() and 1 <= int(user_choice) <= len(aspects):
+                new_value = aspects[int(user_choice) - 1]
+                aspect = aspects[int(user_choice) - 1]
+
+                if(aspect == "Exit"):
+                    await ctx.send("Exiting update page.")
+                    break
+                if(aspect == "First Name"):
+                    await ctx.send("Your previous response was: " + updatedUser.get_value("first_name"))
+                    new_value = await self.ask_question(ctx.author, "What is your updated first name? (Example: John)")
+                    updatedUser.set_value("first_name", new_value)
+                elif(aspect == "Last Name"):
+                    await ctx.send("Your previous response was: " + updatedUser.get_value("last_name"))
+                    new_value = await self.ask_question(ctx.author, "What is your updated last name? (Example: Smith)")
+                    updatedUser.set_value("last_name", new_value)
+                elif(aspect == "Major"):
+                    await ctx.send("Your previous response was: " + ", ".join(updatedUser.get_value("major")))
+                    new_value = await Profile.ask_major(self, ctx.author)
+                    updatedUser.set_value("major", new_value)
+                elif(aspect == "Graduation Year"):
+                    await ctx.send("Your previous response was: " + updatedUser.get_value("graduation_year"))
+                    new_value = await Profile.ask_graduation_year(self, ctx.author)
+                    updatedUser.set_value("graduation_year", new_value)
+                elif(aspect == "RIN"):
+                    await ctx.send("Your previous response was: " + updatedUser.get_value("student_id"))
+                    new_value = await Profile.ask_rin(self, ctx.author)
+                    updatedUser.set_value("student_id", new_value)
+                elif(aspect == "RPI Email"):
+                    await ctx.send("Your previous response was: " + updatedUser.get_value("school_email"))
+                    new_value = await Profile.ask_email(self, ctx.author)
+                    updatedUser.set_value("school_email", new_value)
+
+                await ctx.send(f"Your {aspect} has been updated.")
+
+            else:
+                await ctx.send("Invalid choice. Please enter a number between 1 and {}".format(len(aspects)))
+        await self.show_user_profile(ctx, updatedUser)
+        self.bot.db.update_data(updatedUser)
+
+    async def user_choice(self, user):
+        """
+        Asks the user to select an aspect of their profile to update.
+
+        :param user: The user to ask.
+        :type user: discord.User
+        :return: The user's response.
+        :rtype: str
+        :raises discord.TimeoutError: The user took too long to respond.
+        """
+        try:
+            await user.send("What aspect do you want to update?")
+
+            # Wait for the user's reply (timeout in seconds)
+            msg = await self.bot.wait_for(
+                "message", check=lambda message: message.author == user and isinstance(message.channel, discord.DMChannel), timeout=60
+            )
+
+            return msg.content
+        except discord.TimeoutError:
+            await user.send("You took too long to respond! Please start the profile setup again.")
+            return None
+
+    async def show_user_profile(self, ctx, user_profile):
+        """
+        Sends an embed showing the user's updated profile. 
+        """
+        embed = discord.Embed(
+            title=f"{ctx.author.display_name}'s Updated Profile",
+            description="Here is the information you provided:",
+            color=discord.Color.purple(),
+        )
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
+        embed.add_field(name="First Name", value=user_profile.get_value("first_name"), inline=True)
+        embed.add_field(name="Last Name", value=user_profile.get_value("last_name"), inline=True)
+        embed.add_field(name="Major", value=", ".join(user_profile.get_value("major")), inline=True)
+        embed.add_field(name="Graduation Year", value=user_profile.get_value("graduation_year"), inline=True)
+        embed.add_field(name="RPI Email", value=user_profile.get_value("school_email"), inline=True)
+        embed.add_field(name="RIN", value=user_profile.get_value("student_id"), inline=True)
+
+        await ctx.send(embed=embed)
+
+
+    @commands.command(name="show_profile", help="Shows your profile.")
+    async def show_profile(self, ctx):
+        """
+        Shows your profile.
+        """
+        user = self.bot.db.get_data("user",ctx.author.id)
+        if(user == -1 or not user):
+            await ctx.send("You don't have a profile. Please use the !profile command to create one.")
+            return
+        await self.show_user_profile(ctx, user)
 async def setup(bot: commands.Bot):
     await bot.add_cog(Profile(bot))
 
