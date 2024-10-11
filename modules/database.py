@@ -92,7 +92,7 @@ class Data:
 
         """
         if _key == "id":
-            raise ValueError("Cannot set the id of a Data object.")
+            self.__id = _value
 
         assert _key in self.__data
         self.__data[_key] = _value
