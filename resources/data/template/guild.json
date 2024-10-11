@@ -1,8 +1,9 @@
 {
     "type": "guild",
-    "id": null,
     "users": [],
     "events": [],
+    "announcements_channel": null,
+    "moderator_channel": null,
     "updated_at": "",
     "created_at": ""
 }
