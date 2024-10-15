@@ -24,12 +24,12 @@ class Ping(commands.Cog):
         self.logger.info(message)
         await ctx.send(embed=embed)
 
-    @commands.command(name="Admin ping", help="ADMIN - Shows the bot's latency.")
+    @commands.command(name="admin_ping", help="ADMIN - Shows the bot's latency.")
     @commands.has_permissions(administrator=True)
     async def admin_ping(self, ctx):
         message = f"⏱ {round(self.bot.latency * 1000)} ms Latency!"
         embed = discord.Embed(
-            title="Ping",
+            title="Admin Ping",
             description=message,
             color=discord.Color.pink(),
         )
@@ -37,7 +37,7 @@ class Ping(commands.Cog):
         await ctx.send(embed=embed)
 
     @admin_ping.error
-    async def admin_ping_error(ctx, error):
+    async def admin_ping_error(self, ctx, error):
         if isinstance(error, commands.MissingPermissions):
             msg = "Not an admin {}".format(ctx.message.author.mention)  
             await ctx.send(msg)
