@@ -1,12 +1,15 @@
 import discord
+import random
+import string
 import logging
 from discord.ext import commands
 from modules.database import Database
-
+from modules.email import Email
 class Profile(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.db = Database()
+        self.email = Email()
         self.logger = logging.getLogger(
             f"discord.cog.{self.__class__.__name__.lower()}"
         )
@@ -22,8 +25,20 @@ class Profile(commands.Cog):
             self.logger.error("majors.txt not found")
             return []
 
-    @commands.command(name="profile", help="Shows your profile.")
+    @commands.group(name="profile", invoke_without_command=True, help="Profile commands.")
     async def profile(self, ctx):
+        embed = discord.Embed(
+            title="Profile Commands",
+            description="Below are the profile commands you can use.\n!profile create - Creates your profile.\n!profile update - Updates your profile.\n!profile show - Shows your profile.",
+            color=discord.Color.purple(),
+        )
+        test_email = Email()
+        print(test_email.send_email("shiv@rpi.edu", "Test Email","Test Message"))
+        test_email.send_email("vincentshi12345@gmail.com", "Test Email", "Test Message")
+        await ctx.send(embed=embed)
+
+    @profile.command(name="create", help="Creates your profile.")
+    async def create(self, ctx):
 
         # Create an embed with a welcome message
         """
@@ -205,11 +220,25 @@ class Profile(commands.Cog):
         Return None if the user doesn't respond in time or if the response is not a valid email.
         """
         while(True):
+            
             rpi_email = await self.ask_question(user, "What is your RPI email? Please type our your full email address! (Example: smithj23@rpi.edu)")
             if rpi_email is None:
                 return None
 
-            if rpi_email.count("@") == 1 and rpi_email.count(".") > 0:
+            if rpi_email[-8:] == "@rpi.edu":
+                # characters = string.ascii_letters + string.digits
+                # encypted = "".join(random.choice(characters) for _ in range(8))
+                # self.bot.email.send_email(rpi_email, "RPI Email Verification", encypted)
+
+                # await user.send("An email has been sent to your RPI email. Please verify your email")
+
+                # msg = await self.bot.wait_for(
+                #     "message", check=lambda message: message.author == user and isinstance(message.channel, discord.DMChannel), timeout=60
+                # )
+                # if(msg.content == encypted):
+                #     return rpi_email
+                # else:
+                #     await user.send(f"{msg} is not a valid code. Please enter a valid code.")
                 return rpi_email
             else:
                 await user.send(f"{rpi_email} is not a valid email. Please enter a valid email.") 
@@ -232,7 +261,7 @@ class Profile(commands.Cog):
 
 
     
-    @commands.command(name = "update", help = "Updates your profile.")
+    @profile.command(name = "update", help = "Updates your profile.")
     async def update(self, ctx):
         # Create an embed with a welcome message
         """
@@ -338,7 +367,7 @@ class Profile(commands.Cog):
         await ctx.send(embed=embed)
 
 
-    @commands.command(name="show_profile", help="Shows your profile.")
+    @profile.command(name="show", help="Shows your profile.")
     async def show_profile(self, ctx):
         """
         Shows your profile.
