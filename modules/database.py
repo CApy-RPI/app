@@ -277,7 +277,7 @@ class Database:
             .data
         ]
 
-    def get_linked_paginated_data(
+    def get_paginated_linked_data(
         self, _table_name: str, _data: Data, _page: int, _limit: int
     ):
         """

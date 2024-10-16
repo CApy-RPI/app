@@ -6,8 +6,8 @@
     "student_id": "",
     "major": [],
     "graduation_year": null,
-    "guilds": [],
-    "registered_events": [],
+    "guild": [],
+    "event": [],
     "updated_at": "",
     "created_at": ""
 }

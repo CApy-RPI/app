@@ -26,7 +26,7 @@ class Bot(commands.AutoShardedBot):
         # If not, insert new guild into guild table
         if not existing_guild:
             new_guild_data = self.db.create_data("guild", guild.id)
-            self.db.update_data(new_guild_data)
+            self.db.upsert_data(new_guild_data)
             self.logger.info(
                 f"Inserted New Guild: {guild.name} (ID: {guild.id}) into database"
             )
