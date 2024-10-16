@@ -97,6 +97,7 @@ class Data:
 
         # Load fields from input data
         self.__data = json.loads(_data["data"])
+        self.__id = _id
 
         # Check for any updates from template
         for key, value in templates[_type].items():
@@ -177,7 +178,7 @@ class Database:
             os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_KEY")
         )
 
-    # ! Database data creation
+    #! Database data creation
     def create_data(self, _table_name: str, _id: int):
         """
         Create a new Data object with the given type and id.
@@ -192,7 +193,7 @@ class Database:
 
         return Data(_table_name, _id)
 
-    # ! Database data retrieval
+    #! Database data retrieval
     def get_data(self, _table_name: str, _id: int):
         """
         Retrieve a row from the specified table by the given ID.
@@ -306,7 +307,7 @@ class Database:
             .data
         ]
 
-    # ! Database data search and find
+    #! Database data search and find
     def search_data(self, _table_name: str, _field: str, _value: any):
         """
         Search for Data objects in the specified table by the given field and value.
@@ -341,7 +342,7 @@ class Database:
         """
         return self.get_data(_data.get_value("type"), _data.get_value("id")) is not None
 
-    # ! Database data update and upsert
+    #! Database data update and upsert
     """ Deprecate - replaced with upsert
     def __insert_data(self, _data: Data):
         '''
@@ -372,8 +373,8 @@ class Database:
         _data.set_value("updated_at", now())
 
         # Update the data in the database
-        self.__client.table(_data.get_value("type")).upsert({"data": str(_data)}).eq(
-            "id", _data.get_value("id")
+        self.__client.table(_data.get_value("type")).upsert(
+            {"id": _data.get_value("id"), "data": str(_data)}
         ).execute()
 
     def update_data(self, _data: Data):
@@ -409,7 +410,7 @@ class Database:
         ]
         self.__client.table(_table_name).upsert(update_payload).execute()
 
-    # ! Database data delete and restore
+    #! Database data delete and restore
     def soft_delete(self, _table_name: str, _id: int):
         """
         Soft delete a record by marking it as deleted and adding a timestamp.
@@ -501,7 +502,7 @@ class Database:
             "is_deleted", True
         ).execute()
 
-    # ! Database table backup and restore
+    #! Database table backup and restore
     def backup_table(self, _table_name: str, _output_file: str):
         """
         Back up the data in the given table to a file.
