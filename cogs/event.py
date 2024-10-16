@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from modules.database import Database
+from datetime import datetime
 
 # Change this to fetch data from some sort of database
 
@@ -72,8 +73,16 @@ class EventCog(commands.Cog):
         embed.add_field(name="Date", value=date, inline=True)
         embed.add_field(name="Time", value=time_str, inline=True)
 
-        # Send the embed confirmation message
-        await ctx.send(embed=embed)
+        # Send the embed confirmation message and also store it
+        msg = await ctx.send(embed=embed)
+
+        # Allow check mark (✅) and X (❌) emojis for users to react with
+        await msg.add_reaction("✅")
+        await msg.add_reaction("❌")
+
+        # Add the event to the user_events dictionary
+        self.attendance[msg.id] = {"yes": set(), "no": set()}
+
 
     # Command to clear all events
     @commands.command(name="clear_events", help="Clears all upcoming events")
@@ -85,6 +94,73 @@ class EventCog(commands.Cog):
             color=discord.Color.orange(),
         )
         await ctx.send(embed=embed)
+
+    @commands.Cog.listener()
+    async def reaction_attendance_add(self, reaction, user):
+        """Handles reactions to track user sign up"""
+        if user.bot: # Ignore the bot reactions
+            return
+        
+        message_id = reaction.message.id
+
+        guild_data = self.db.get_data("guild", reaction.message.guild.id)
+        event = next((event for event in guild_data.get_value("events") if event["id"] == message_id), None)  
+
+        if event:
+            if str(reaction.emoji) == "✅":
+                if user.id not in event["users"]:
+                    event["users"].append(user.id)
+            elif str(reaction.emoji) == "❌":
+                if user.id in event["users"]:
+                    event["users"].remove(user.id)
+
+            self.db.update_data(guild_data)           
+
+    @commands.Cog.listener()
+    async def reaction_attendance_remove(self, reaction, user):
+        """Handles reactions to track user removal"""
+        if user.bot: # Ignore the bot reactions
+            return
+        
+        message_id = reaction.message.id
+        guild_data = self.db.get_data("guild", reaction.message.guild.id)
+        event = next((event for event in guild_data.get_value("events") if event["id"] == message_id), None)
+
+        if event:
+            if str(reaction.emoji) == "✅" and user.id in event["users"]:
+                event["users"].remove(user.id)
+
+            self.db.update_data(guild_data)
+
+
+    # MAKE A FUNCTION TO SHOW ADMIN ALL ATTENDEES FOR AN EVENT
+    #! RESTRICT REGULAR MEMBERS FROM USING THIS FEATURE
+    @commands.command(name="attendance", help="Shows attendance for upcoming events")
+    async def all_events_attendance(self, ctx, message_id: int): 
+        """"Displays all attendance for a certain events"""
+        if message_id not in self.attendance:
+            await ctx.send("No attendance found for this event")
+
+    yes_list = "\n".join([user.name for user in self.attendance[message_id]["yes"]])
+    no_list = "\n".join([user.name for user in self.attendance[message_id]["no"]])
+
+    embed = discord.Embed(
+        title="Attendance",
+        description=f"**Yes:**\n{yes_list}\n\n**No:**\n{no_list}",
+        color=discord.Color.green()
+    )
+    embed.add_field(name="Going✅", value=yes_list or "Empty", inline=False)
+    embed.add_field(name="Not Going❌", value=no_list or "Empty", inline=False)
+
+    await ctx.send(embed=embed)
+
+    # embed = discord.Embed(
+    #     title="Attendance",
+    #     description=f"Event ID: {message_id}",
+    #     color=discord.Color.blue(),
+    # )
+    
+    #! MAKE A FUNCTION TO SHOW SPECIFIC EVENTS THAT A SINGLE USER IS SIGNED UP TO ATTEND
 
 
 # Setup function to load the cog
