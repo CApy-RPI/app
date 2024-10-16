@@ -61,7 +61,7 @@ def format_time_extended(_yr, _mo, _day, _hr, _min, _sec):
 
 
 class Data:
-    def __init__(self, _type: str, _id: int, _data: str = ""):
+    def __init__(self, _type: str, _data: dict = None):
         """
         Initialize a new Data object with the given type, id, and data.
 
@@ -97,7 +97,7 @@ class Data:
 
         # Load fields from input data
         self.__data = json.loads(_data["data"])
-        self.__id = _id
+        self.__id = _data["id"]
 
         # Check for any updates from template
         for key, value in templates[_type].items():
@@ -207,7 +207,7 @@ class Database:
         """
         response = (
             self.__client.table(_table_name)
-            .select("data")
+            .select("*")
             .eq("id", _id)
             .eq("is_deleted", False)
             .execute()
@@ -217,7 +217,6 @@ class Database:
         return (
             Data(
                 _table_name,
-                _id,
                 response[0],
             )
             if response
@@ -238,7 +237,7 @@ class Database:
         """
         offset = (_page - 1) * _limit
         return [
-            Data(_table_name, item["id"], item["data"])
+            Data(_table_name, item)
             for item in self.__client.table(_table_name)
             .select("*")
             .eq("is_deleted", False)
@@ -269,7 +268,7 @@ class Database:
             )
 
         return [
-            Data(_table_name, item["id"], item["data"])
+            Data(_table_name, item)
             for item in self.__client.table(_table_name)
             .select("*")
             .in_("id", _data.get_value(_table_name))
@@ -297,7 +296,7 @@ class Database:
         """
         offset = (_page - 1) * _limit
         return [
-            Data(_table_name, item["id"], item["data"])
+            Data(_table_name, item)
             for item in self.__client.table(_table_name)
             .select("*")
             .in_("id", _data.get_value(_table_name))  # Only include linked rows
@@ -328,7 +327,7 @@ class Database:
             .eq("is_deleted", False)
             .execute()
         )
-        return [Data(_table_name, item["id"], item["data"]) for item in response.data]
+        return [Data(_table_name, item) for item in response.data]
 
     def exists_data(self, _data: Data):
         """
