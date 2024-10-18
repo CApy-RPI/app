@@ -2,8 +2,9 @@
 
 import os
 import json
-from datetime import datetime, timezone
 from supabase import create_client
+
+from timestamp import now
 
 # Import all templates into a dict
 templates = {}
@@ -11,66 +12,6 @@ for filename in os.listdir("resources/data/template"):
     if filename.endswith(".json"):
         with open(f"resources/data/template/{filename}", "r") as f:
             templates[filename[:-5]] = json.load(f)
-
-
-def now():
-    """
-    Returns the current time in the America/New_York timezone in the format
-    %Y-%m-%d %H:%M:%S %Z %z.
-
-    Returns:
-        The current time in the America/New_York timezone.
-    """
-    return datetime.now(timezone.utc)
-
-
-def format_time(_date: str, _time: str):
-    """
-    Formats the given date and time into the same format as the now() function.
-
-    Args:
-        date (str): The date in the format %Y-%m-%d.
-        time (str): The time in the format %H:%M:%S.
-
-    Returns:
-        str: The formatted time in the format %Y-%m-%d %H:%M:%S %Z %z.
-    """
-    assert len(_date) == 10
-    assert _date[4] == "-"
-    assert _date[7] == "-"
-    assert len(_time) == 8
-    assert _time[2] == ":"
-    assert _time[5] == ":"
-
-    return f"{_date} {_time}"
-
-
-def format_time_extended(_yr: int, _mo: int, _day: int, _hr: int, _min: int, _sec: int):
-    """
-    Formats the given year, month, day, hour, minute, and second into the same
-    format as the now() function.
-
-    Args:
-        yr (int): The year.
-        mo (int): The month.
-        day (int): The day of the month.
-        hr (int): The hour of the day.
-        min (int): The minute of the hour.
-        sec (int): The second of the minute.
-
-    Returns:
-        str: The formatted time in the format %Y-%m-%d %H:%M:%S %Z %z.
-    """
-    assert _yr >= 1970
-    assert _mo >= 1
-    assert _mo <= 12
-    assert _day >= 1
-    assert _day <= 31
-    assert _hr >= 0
-    assert _hr <= 23
-    assert _min >= 0
-    assert _min <= 59
-    return f"{_yr}-{_mo}-{_day} {_hr}:{_min}:{_sec}"
 
 
 class Data:
@@ -118,7 +59,7 @@ class Data:
             if key not in self.__data:
                 self.__data[key] = value
 
-    def get_value(self, _key):
+    def get_value(self, _key: str):
         """
         Return the value associated with the given key.
 
@@ -130,7 +71,7 @@ class Data:
         """
         return self.__id if _key == "id" else self.__data[_key]
 
-    def set_value(self, _key, _value):
+    def set_value(self, _key: str, _value):
         """
         Set the value associated with the given key.
 
@@ -145,7 +86,7 @@ class Data:
         assert _key in self.__data
         self.__data[_key] = _value
 
-    def append_value(self, _key, _value):
+    def append_value(self, _key: str, _value):
         """
         Append a value to the end of the list associated with the given key.
 
@@ -157,6 +98,45 @@ class Data:
         assert _key in self.__data
         assert isinstance(self.__data[_key], list)
         self.__data[_key].append(_value)
+
+    def remove_value(self, _key: str, _value):
+        """
+        Remove a value from the list associated with the given key.
+
+        Args:
+            _key (str): The key to remove the value from.
+            _value (object): The value to remove.
+        """
+
+        assert _key in self.__data
+        assert isinstance(self.__data[_key], list)
+        self.__data[_key].remove(_value)
+
+    def pop_value(self, _key: str, _index: int):
+        """
+        Pop a value from the list associated with the given key.
+
+        Args:
+            _key (str): The key to remove the element from.
+            _index (int): The index of the element to pop.
+        """
+
+        assert _key in self.__data
+        assert isinstance(self.__data[_key], list)
+        assert _index < len(self.__data[_key])
+        return self.__data[_key].pop(_index)
+
+    def clear_value(self, _key: str):
+        """
+        Remove all values from the list associated with the given key.
+
+        Args:
+            _key (str): The key to remove all values from.
+        """
+
+        assert _key in self.__data
+        assert isinstance(self.__data[_key], list)
+        self.__data[_key] = []
 
     def __str__(self):
         """
