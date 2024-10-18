@@ -18,22 +18,38 @@ class Bot(commands.AutoShardedBot):
 
     # Event that runs when the bot joins a new server
     async def on_guild_join(self, guild: discord.Guild):
-        """Called when the bot joins a new guild (server)."""
-
-        # Check if guild id exists within guild table column id
-        existing_guild = self.db.get_data("guild", guild.id)
-
-        # If not, insert new guild into guild table
-        if not existing_guild:
-            new_guild_data = self.db.create_data("guild", guild.id)
-            self.db.update_data(new_guild_data)
-            self.logger.info(
-                f"Inserted New Guild: {guild.name} (ID: {guild.id}) into database"
-            )
-        else:
+        # If already in guild, do nothing
+        if self.db.get_data("guild", guild.id):
             self.logger.info(
                 f"Joined Guild: {guild.name} (ID: {guild.id}) already exists in database"
             )
+            return
+
+        # Else, add guild to data base
+        new_guild_data = self.db.create_data("guild", guild.id)
+        self.db.upsert_data(new_guild_data)
+        self.logger.info(
+            f"Inserted New Guild: {guild.name} (ID: {guild.id}) into database"
+        )
+
+    # Event that runs when a member joins a guild
+    async def on_member_join(self, member: discord.Member):
+        # get current guild data
+        guild_data = self.db.get_data("guild", member.guild.id)
+
+        # if guild does not exist, create it
+        if not guild_data:
+            self.logger.warn(
+                f"Guild {member.guild.name} does not exist in database for user {member.id} on join"
+            )
+            guild_data = self.db.create_data("guild", member.guild.id)
+
+        # add member id to server users list
+        guild_data.append_value("users", member.id)
+        self.db.upsert_data(guild_data)
+        self.logger.info(
+            f"User {member.id} joined guild {member.guild.name} (ID: {member.guild.id})"
+        )
 
     async def setup_hook(self):
         # Import all cogs from the 'cogs/' directory

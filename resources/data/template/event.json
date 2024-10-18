@@ -2,11 +2,10 @@
     "type": "event",
     "guild_id": null,
     "name": "",
-    "date": "",
-    "time": "",
+    "datetime": "",
     "location": "",
     "description": "",
-    "registered_users": [],
+    "user": [],
     "updated_at": "",
     "created_at": ""
 }

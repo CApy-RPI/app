@@ -2,8 +2,7 @@
 
 import os
 import json
-import pytz
-from datetime import datetime
+from datetime import datetime, timezone
 from supabase import create_client
 
 # Import all templates into a dict
@@ -22,12 +21,10 @@ def now():
     Returns:
         The current time in the America/New_York timezone.
     """
-    eastern = pytz.timezone("America/New_York")
-    eastern_time = datetime.now(eastern)
-    return eastern_time.strftime("%Y-%m-%d %H:%M:%S %Z %z")
+    return datetime.now(timezone.utc)
 
 
-def format_time(_date, _time):
+def format_time(_date: str, _time: str):
     """
     Formats the given date and time into the same format as the now() function.
 
@@ -38,10 +35,17 @@ def format_time(_date, _time):
     Returns:
         str: The formatted time in the format %Y-%m-%d %H:%M:%S %Z %z.
     """
-    return f"{_date} {_time} {pytz.timezone('America/New_York').tzname(datetime.now())} {datetime.now().strftime('%z')}"
+    assert len(_date) == 10
+    assert _date[4] == "-"
+    assert _date[7] == "-"
+    assert len(_time) == 8
+    assert _time[2] == ":"
+    assert _time[5] == ":"
+
+    return f"{_date} {_time}"
 
 
-def format_time_extended(_yr, _mo, _day, _hr, _min, _sec):
+def format_time_extended(_yr: int, _mo: int, _day: int, _hr: int, _min: int, _sec: int):
     """
     Formats the given year, month, day, hour, minute, and second into the same
     format as the now() function.
@@ -57,11 +61,20 @@ def format_time_extended(_yr, _mo, _day, _hr, _min, _sec):
     Returns:
         str: The formatted time in the format %Y-%m-%d %H:%M:%S %Z %z.
     """
-    return format_time(f"{_yr}-{_mo}-{_day} {_hr}:{_min}:{_sec}")
+    assert _yr >= 1970
+    assert _mo >= 1
+    assert _mo <= 12
+    assert _day >= 1
+    assert _day <= 31
+    assert _hr >= 0
+    assert _hr <= 23
+    assert _min >= 0
+    assert _min <= 59
+    return f"{_yr}-{_mo}-{_day} {_hr}:{_min}:{_sec}"
 
 
 class Data:
-    def __init__(self, _type: str, _id: int, _data: str = ""):
+    def __init__(self, _type: str, _data: dict = None, _id: int = None):
         """
         Initialize a new Data object with the given type, id, and data.
 
@@ -90,6 +103,7 @@ class Data:
 
         # Return copied template data if no input data is provided
         if not _data:
+            assert _id is not None
             self.__data = templates[_type].copy()
             self.__data["created_at"] = now()
             self.__id = _id
@@ -97,6 +111,7 @@ class Data:
 
         # Load fields from input data
         self.__data = json.loads(_data["data"])
+        self.__id = _data["id"]
 
         # Check for any updates from template
         for key, value in templates[_type].items():
@@ -177,7 +192,7 @@ class Database:
             os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_KEY")
         )
 
-    # ! Database data creation
+    #! Database data creation
     def create_data(self, _table_name: str, _id: int):
         """
         Create a new Data object with the given type and id.
@@ -190,9 +205,9 @@ class Database:
             Data: A new Data object with the given type and id.
         """
 
-        return Data(_table_name, _id)
+        return Data(_table_name, _id=_id)
 
-    # ! Database data retrieval
+    #! Database data retrieval
     def get_data(self, _table_name: str, _id: int):
         """
         Retrieve a row from the specified table by the given ID.
@@ -206,7 +221,7 @@ class Database:
         """
         response = (
             self.__client.table(_table_name)
-            .select("data")
+            .select("*")
             .eq("id", _id)
             .eq("is_deleted", False)
             .execute()
@@ -216,7 +231,6 @@ class Database:
         return (
             Data(
                 _table_name,
-                _id,
                 response[0],
             )
             if response
@@ -237,7 +251,7 @@ class Database:
         """
         offset = (_page - 1) * _limit
         return [
-            Data(_table_name, item["id"], item["data"])
+            Data(_table_name, item)
             for item in self.__client.table(_table_name)
             .select("*")
             .eq("is_deleted", False)
@@ -268,7 +282,7 @@ class Database:
             )
 
         return [
-            Data(_table_name, item["id"], item["data"])
+            Data(_table_name, item)
             for item in self.__client.table(_table_name)
             .select("*")
             .in_("id", _data.get_value(_table_name))
@@ -277,7 +291,7 @@ class Database:
             .data
         ]
 
-    def get_linked_paginated_data(
+    def get_paginated_linked_data(
         self, _table_name: str, _data: Data, _page: int, _limit: int
     ):
         """
@@ -296,7 +310,7 @@ class Database:
         """
         offset = (_page - 1) * _limit
         return [
-            Data(_table_name, item["id"], item["data"])
+            Data(_table_name, item)
             for item in self.__client.table(_table_name)
             .select("*")
             .in_("id", _data.get_value(_table_name))  # Only include linked rows
@@ -306,7 +320,7 @@ class Database:
             .data
         ]
 
-    # ! Database data search and find
+    #! Database data search and find
     def search_data(self, _table_name: str, _field: str, _value: any):
         """
         Search for Data objects in the specified table by the given field and value.
@@ -327,7 +341,7 @@ class Database:
             .eq("is_deleted", False)
             .execute()
         )
-        return [Data(_table_name, item["id"], item["data"]) for item in response.data]
+        return [Data(_table_name, item) for item in response.data]
 
     def exists_data(self, _data: Data):
         """
@@ -341,7 +355,7 @@ class Database:
         """
         return self.get_data(_data.get_value("type"), _data.get_value("id")) is not None
 
-    # ! Database data update and upsert
+    #! Database data update and upsert
     """ Deprecate - replaced with upsert
     def __insert_data(self, _data: Data):
         '''
@@ -372,8 +386,8 @@ class Database:
         _data.set_value("updated_at", now())
 
         # Update the data in the database
-        self.__client.table(_data.get_value("type")).upsert({"data": str(_data)}).eq(
-            "id", _data.get_value("id")
+        self.__client.table(_data.get_value("type")).upsert(
+            {"id": _data.get_value("id"), "data": str(_data)}
         ).execute()
 
     def update_data(self, _data: Data):
@@ -409,7 +423,7 @@ class Database:
         ]
         self.__client.table(_table_name).upsert(update_payload).execute()
 
-    # ! Database data delete and restore
+    #! Database data delete and restore
     def soft_delete(self, _table_name: str, _id: int):
         """
         Soft delete a record by marking it as deleted and adding a timestamp.
@@ -501,7 +515,7 @@ class Database:
             "is_deleted", True
         ).execute()
 
-    # ! Database table backup and restore
+    #! Database table backup and restore
     def backup_table(self, _table_name: str, _output_file: str):
         """
         Back up the data in the given table to a file.
