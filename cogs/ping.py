@@ -36,5 +36,23 @@ class Ping(commands.Cog):
         self.logger.info(message)
         await ctx.send(embed=embed)
 
+    @commands.command(name="ping2", help="Shows the bot's latency, use optional admin param to change to red")
+    async def ping2(self, ctx, admin=None):
+        message = f"⏱ {round(self.bot.latency * 1000)} ms Latency!"
+        if admin == "admin" and ctx.message.author.guild_permissions.administrator:
+            embed = discord.Embed(
+                title="Ping 2",
+                description=message,
+                color=discord.Color.red(),
+            )
+        else:
+            embed = discord.Embed(
+                title="Ping 2",
+                description=message,
+                color=discord.Color.pink(),
+            )
+        self.logger.info(message)
+        await ctx.send(embed=embed)
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(Ping(bot))
