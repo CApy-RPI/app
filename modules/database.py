@@ -61,7 +61,7 @@ def format_time_extended(_yr, _mo, _day, _hr, _min, _sec):
 
 
 class Data:
-    def __init__(self, _type: str, _data: dict = None):
+    def __init__(self, _type: str, _data: dict = None, _id: int = None):
         """
         Initialize a new Data object with the given type, id, and data.
 
@@ -90,6 +90,7 @@ class Data:
 
         # Return copied template data if no input data is provided
         if not _data:
+            assert _id is not None
             self.__data = templates[_type].copy()
             self.__data["created_at"] = now()
             self.__id = _id
@@ -191,7 +192,7 @@ class Database:
             Data: A new Data object with the given type and id.
         """
 
-        return Data(_table_name, _id)
+        return Data(_table_name, _id=_id)
 
     #! Database data retrieval
     def get_data(self, _table_name: str, _id: int):
