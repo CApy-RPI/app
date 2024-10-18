@@ -2,8 +2,7 @@
 
 import os
 import json
-import pytz
-from datetime import datetime
+from datetime import datetime, timezone
 from supabase import create_client
 
 # Import all templates into a dict
@@ -22,12 +21,10 @@ def now():
     Returns:
         The current time in the America/New_York timezone.
     """
-    eastern = pytz.timezone("America/New_York")
-    eastern_time = datetime.now(eastern)
-    return eastern_time.strftime("%Y-%m-%d %H:%M:%S %Z %z")
+    return datetime.now(timezone.utc)
 
 
-def format_time(_date, _time):
+def format_time(_date: str, _time: str):
     """
     Formats the given date and time into the same format as the now() function.
 
@@ -38,10 +35,17 @@ def format_time(_date, _time):
     Returns:
         str: The formatted time in the format %Y-%m-%d %H:%M:%S %Z %z.
     """
-    return f"{_date} {_time} {pytz.timezone('America/New_York').tzname(datetime.now())} {datetime.now().strftime('%z')}"
+    assert len(_date) == 10
+    assert _date[4] == "-"
+    assert _date[7] == "-"
+    assert len(_time) == 8
+    assert _time[2] == ":"
+    assert _time[5] == ":"
+
+    return f"{_date} {_time}"
 
 
-def format_time_extended(_yr, _mo, _day, _hr, _min, _sec):
+def format_time_extended(_yr: int, _mo: int, _day: int, _hr: int, _min: int, _sec: int):
     """
     Formats the given year, month, day, hour, minute, and second into the same
     format as the now() function.
@@ -57,7 +61,16 @@ def format_time_extended(_yr, _mo, _day, _hr, _min, _sec):
     Returns:
         str: The formatted time in the format %Y-%m-%d %H:%M:%S %Z %z.
     """
-    return format_time(f"{_yr}-{_mo}-{_day} {_hr}:{_min}:{_sec}")
+    assert _yr >= 1970
+    assert _mo >= 1
+    assert _mo <= 12
+    assert _day >= 1
+    assert _day <= 31
+    assert _hr >= 0
+    assert _hr <= 23
+    assert _min >= 0
+    assert _min <= 59
+    return f"{_yr}-{_mo}-{_day} {_hr}:{_min}:{_sec}"
 
 
 class Data:
