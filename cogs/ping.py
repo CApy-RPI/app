@@ -36,12 +36,5 @@ class Ping(commands.Cog):
         self.logger.info(message)
         await ctx.send(embed=embed)
 
-    @admin_ping.error
-    async def admin_ping_error(self, ctx, error):
-        if isinstance(error, commands.MissingPermissions):
-            msg = "Not an admin {}".format(ctx.message.author.mention)  
-            await ctx.send(msg)
-
-
 async def setup(bot: commands.Bot):
     await bot.add_cog(Ping(bot))
