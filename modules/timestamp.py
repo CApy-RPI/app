@@ -11,7 +11,7 @@ def now():
     Returns:
         The current time in the America/New_York timezone.
     """
-    return datetime.now(timezone.utc)
+    return str(datetime.now(timezone.utc))
 
 
 def format_time(_datetime: str) -> str:
@@ -19,11 +19,15 @@ def format_time(_datetime: str) -> str:
     Formats the given date and time into the same format as the now() function in UTC.
 
     Args:
-        _datetime (str): The date in the format MM/DD/YY HH:MM {AM/PM} with an optional timezone.
+        _datetime (str): The date in the format MM/DD/YYYY HH:MM {AM/PM} with an optional timezone.
 
     Returns:
         str: The formatted time in UTC.
     """
+    import re
+    from datetime import datetime
+    import pytz
+
     # Regular expression to check if the datetime contains a timezone (like EST, PST, UTC, etc.)
     timezone_pattern = r"\b(UTC|EST|EDT|CST|CDT|PST|PDT|MST|MDT)\b"
 
@@ -38,12 +42,10 @@ def format_time(_datetime: str) -> str:
     _datetime = re.sub(timezone_pattern, "", _datetime).strip()
 
     # Parse the datetime string to a naive datetime object (without timezone)
-    naive_datetime = datetime.strptime(_datetime, "%m/%d/%y %I:%M %p")
+    naive_datetime = datetime.strptime(_datetime, "%m/%d/%Y %I:%M %p")
 
     # Convert the naive datetime to the appropriate timezone
-    local_tz = pytz.timezone(
-        "America/New_York" if tz_str == "EDT" else pytz.timezone(tz_str)
-    )
+    local_tz = pytz.timezone("America/New_York" if tz_str == "EDT" else tz_str)
     localized_datetime = local_tz.localize(naive_datetime)
 
     # Convert to UTC

@@ -4,7 +4,7 @@ import os
 import json
 from supabase import create_client
 
-from timestamp import now
+from modules.timestamp import now
 
 # Import all templates into a dict
 templates = {}
@@ -442,6 +442,18 @@ class Database:
         self.__client.table(_table_name).update(
             {"is_deleted": False, "deleted_at": None}
         ).eq("id", _id).execute()
+
+    def bulk_soft_delete_after_time(self, _table_name: str, _cutoff_time: str):
+        """
+        Soft delete all records in a table that are older than a specified time.
+
+        Args:
+            _table_name (str): The name of the table to soft delete from.
+            _cutoff_time (str): The cutoff time to soft delete records older than this time.
+        """
+        self.__client.table(_table_name).update(
+            {"is_deleted": True, "deleted_at": now()}
+        ).lt("created_at", _cutoff_time).is_("is_deleted", False).execute()
 
     def bulk_soft_delete(self, _table_name: str, _ids: list[int]):
         """
