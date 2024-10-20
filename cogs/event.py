@@ -33,7 +33,7 @@ class EventCog(commands.Cog):
         embed = self._create_events_embed(guild_events)
         await ctx.send(embed=embed)
 
-    async def _send_no_events_embed(self, ctx):
+    async def send_no_events_embed(self, ctx):
         """
         Sends an embed message when there are no upcoming events.
         """
@@ -44,7 +44,7 @@ class EventCog(commands.Cog):
         )
         await ctx.send(embed=embed)
 
-    def _create_events_embed(self, guild_events):
+    def create_events_embed(self, guild_events):
         """
         Creates an embed with the list of upcoming events.
         """
@@ -70,20 +70,21 @@ class EventCog(commands.Cog):
         name = await self.ask_for_event_name(ctx)
         date = await self.ask_for_event_date(ctx)
         time = await self.ask_for_event_time(ctx)
+        location = await self.ask_for_event_location(ctx)
 
         time_str = format_time(f"{date} {time}")
 
         guild_data = self.db.get_data("guild", ctx.guild.id)
         new_event_id = int(datetime.now(timezone.utc).timestamp() * 1000)
         new_event_data = self.create_event_data(
-            new_event_id, name, time_str, ctx.guild.id
+            new_event_id, name, time_str, location, ctx.guild.id
         )
 
         self.db.upsert_data(new_event_data)
         guild_data.append_value("event", new_event_id)
         self.db.upsert_data(guild_data)
 
-        embed = self.create_confirmation_embed(name, time_str, new_event_id)
+        embed = self.create_confirmation_embed(name, time_str, location, new_event_id)
         await ctx.send(embed=embed)
 
     async def ask_for_event_name(self, ctx):
@@ -94,9 +95,17 @@ class EventCog(commands.Cog):
         )
         return name_message.content
 
+    async def ask_for_event_location(self, ctx):
+        """Asks for the event location and returns it."""
+        await ctx.send("Please enter the event location:")
+        location_message = await self.bot.wait_for(
+            "message", check=lambda m: m.author == ctx.author
+        )
+        return location_message.content
+
     async def ask_for_event_date(self, ctx):
         """Asks for the event date and returns it."""
-        await ctx.send("Please enter the event date (MM/DD/YYYY):")
+        await ctx.send("Please enter the event date (MM/DD/YY):")
         date_message = await self.bot.wait_for(
             "message", check=lambda m: m.author == ctx.author
         )
@@ -110,18 +119,23 @@ class EventCog(commands.Cog):
         )
         return time_message.content
 
-    def create_event_data(self, event_id: int, name: str, time_str: str, guild_id: int):
+    def create_event_data(
+        self, event_id: int, name: str, time_str: str, location: str, guild_id: int
+    ):
         """Creates a new event data object."""
         new_event_data = self.db.create_data("event", event_id)
 
         # Ensure all values are serializable
         new_event_data.set_value("name", name)  # Should be a string
         new_event_data.set_value("datetime", time_str)  # Ensure this is a string
+        new_event_data.set_value("location", location)  # Ensure this is a string
         new_event_data.set_value("guild_id", guild_id)  # Should be an int
 
         return new_event_data
 
-    def create_confirmation_embed(self, name: str, time_str: str, event_id: int):
+    def create_confirmation_embed(
+        self, name: str, time_str: str, location: str, event_id: int
+    ):
         """Creates an embed to confirm the event was added."""
         embed = discord.Embed(
             title="Event Added",
@@ -129,6 +143,7 @@ class EventCog(commands.Cog):
             color=discord.Color.blue(),
         )
         embed.add_field(name="Date/Time", value=time_str, inline=True)
+        embed.add_field(name="Location", value=location, inline=True)
         embed.add_field(name="Event ID", value=str(event_id), inline=False)
         return embed
 
