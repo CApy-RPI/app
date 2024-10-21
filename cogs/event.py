@@ -162,6 +162,35 @@ class EventCog(commands.Cog):
     
     #! MAKE A FUNCTION TO SHOW SPECIFIC EVENTS THAT A SINGLE USER IS SIGNED UP TO ATTEND
 
+    @commands.command(name="announce", help="Announces an event in the announcements channel. Usage: !announce <event_id>")
+    async def announce(self, ctx, event_id: int):
+        """Announces an event in the announcements channel"""
+        # Get event data from the database
+        guild_data = self.db.get_data("guild", ctx.guild.id)
+        event = next((event for event in guild_data.get_value("events") if event["id"] == event_id), None)
+
+        if not event:
+            await ctx.send("Event not found")
+            return
+        
+        # Find the Announcements channel
+        announcement_channel = discord.utils.get(ctx.guild.text_channels, name="announcements")
+
+        # Create it if it doesn't exist
+        if announcement_channel is None:
+            announcement_channel = await ctx.guild.create_text_channel("announcements")
+
+        # Create the embed for announcements
+        embed = discord.Embed(
+            title="Event Announcement",
+            description=f"**Event:** {event['name']}\n**Date:** {event['date']}\n**Time:** {event['time']}",
+            color=discord.Color.purple(),
+        )
+        
+        # Send announcement to the channel
+        await announcement_channel.send(embed=embed)
+        await ctx.send(f"Event announced in #{announcement_channel.name}")
+        # await ctx.send(f"Announcement sent to {announcement_channel.mention}.")
 
 # Setup function to load the cog
 async def setup(bot):
