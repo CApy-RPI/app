@@ -1,3 +1,6 @@
-discord
-logging
-black
+black==24.8.0
+discord==2.3.2
+logging==0.4.9.6
+python-dotenv==1.0.1
+supabase==2.7.4
+pytz

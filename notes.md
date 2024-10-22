@@ -13,3 +13,9 @@ All txt files preceeded with . are not pushed to the github
 
 -   Help: Blue
 -   Ping: Pink
+-   Settings: Green
+
+## Errors and logging
+
+-   Cogs and main use logging to report errors and warnings
+-   Modules should return error codes (0 is success)

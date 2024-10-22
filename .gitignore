@@ -1,2 +1,5 @@
 __pycache__
-.*.txt
+.*
+!.gitignore
+!.vscode
+test.py
