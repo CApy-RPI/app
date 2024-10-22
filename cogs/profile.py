@@ -1,11 +1,6 @@
 import discord
-import random
-import string
 import logging
 from discord.ext import commands
-from modules.database import Database
-from modules.email import Email
-
 
 class Profile(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -454,7 +449,6 @@ class Profile(commands.Cog):
         Shows your profile.
         """
         user = self.bot.db.get_data("user", ctx.author.id)
-        print(user.get_value("id"))
         if user == -1 or not user:
             await ctx.send(
                 "You don't have a profile. Please use the !profile command to create one."
