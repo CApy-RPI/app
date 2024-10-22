@@ -2,7 +2,10 @@
 
 import os
 import json
-from supabase import create_client
+from fastapi import FastAPI
+from contextlib import asynccontextmanager
+from supabase_py_async import create_client
+from supabase_py_async.lib.client_options import ClientOptions
 
 from modules.timestamp import now
 
@@ -160,20 +163,78 @@ class Data:
         )
 
 
+class DatabaseError(Exception):
+    pass
+
+
 class Database:
-    def __init__(self):
+    _instance = None
+    _initialized = False
+
+    async def __new__(cls, *args, **kwargs):
         """
-        Initialize a new Database object with the given URL and key.
+        Custom __new__ method to create a singleton instance of the Database class.
+
+        This method ensures that only one instance of the Database class is created, and
+        that instance is reused whenever the class is instantiated.
+
+        Returns:
+            Database: The singleton instance of the Database class.
+        """
+
+        if cls._instance is None:
+            cls._instance = super(Database, cls).__new__(cls)
+        return cls._instance
+
+    async def __init__(self):
+        """
+        Initializes the Database instance, establishing a connection to Supabase.
+
+        This method ensures that the Database is initialized only once. If initialization
+        is attempted more than once, a DatabaseError is raised. The Supabase client is
+        created using the URL and key from environment variables.
 
         Raises:
-            AssertionError: If the SUPABASE_URL or SUPABASE_KEY environment variables are not set.
+            DatabaseError: If the Database is initialized more than once.
         """
-        self.__client = create_client(
+
+        # Prevent re-initialization after the first time
+        if Database._initialized:
+            raise DatabaseError(
+                "Database has already been initialized once and cannot be initialized again."
+            )
+
+        # Set flag to prevent re-initialization
+        Database._initialized = True
+
+        # Connect to Supabase
+        self.__client = await create_client(
             os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_KEY")
         )
 
+        if not self.__client:
+            raise DatabaseError("Failed to initialize the database client.")
+
+        client = None
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        try:
+            url: str = os.getenv("SUPABASE_URL")
+            key: str = os.getenv("SUPABASE_KEY")
+            client = await create_client(
+                url,
+                key,
+                options=ClientOptions(
+                    postgrest_client_timeout=10, storage_client_timeout=10
+                ),
+            )
+            yield
+        finally:
+            pass
+
     #! Database data creation
-    def create_data(self, _table_name: str, _id: int):
+    async def create_data(self, _table_name: str, _id: int):
         """
         Create a new Data object with the given type and id.
 
@@ -185,10 +246,11 @@ class Database:
             Data: A new Data object with the given type and id.
         """
 
-        return Data(_table_name, _id=_id)
+        await self.upsert_data(data := Data(_table_name, _id=_id))
+        return data
 
     #! Database data retrieval
-    def get_data(self, _table_name: str, _id: int):
+    async def get_data(self, _table_name: str, _id: int):
         """
         Retrieve a row from the specified table by the given ID.
 
@@ -199,7 +261,7 @@ class Database:
         Returns:
             Data: The retrieved row from the database represented as a Data object.
         """
-        response = (
+        response = await (
             self.__client.table(_table_name)
             .select("*")
             .eq("id", _id)
@@ -217,7 +279,7 @@ class Database:
             else None
         )
 
-    def get_paginated_data(self, _table_name: str, _page: int, _limit: int):
+    async def get_paginated_data(self, _table_name: str, _page: int, _limit: int):
         """
         Retrieve a paginated list of Data objects from the specified table.
 
@@ -232,7 +294,7 @@ class Database:
         offset = (_page - 1) * _limit
         return [
             Data(_table_name, item)
-            for item in self.__client.table(_table_name)
+            for item in await self.__client.table(_table_name)
             .select("*")
             .eq("is_deleted", False)
             .range(offset, offset + _limit - 1)
@@ -240,7 +302,7 @@ class Database:
             .data
         ]
 
-    def get_linked_data(
+    async def get_linked_data(
         self, _table_name: str, _data: Data, _warn_override: bool = False
     ):
         """
@@ -263,7 +325,7 @@ class Database:
 
         return [
             Data(_table_name, item)
-            for item in self.__client.table(_table_name)
+            for item in await self.__client.table(_table_name)
             .select("*")
             .in_("id", _data.get_value(_table_name))
             .eq("is_deleted", False)
@@ -271,7 +333,7 @@ class Database:
             .data
         ]
 
-    def get_paginated_linked_data(
+    async def get_paginated_linked_data(
         self, _table_name: str, _data: Data, _page: int, _limit: int
     ):
         """
@@ -291,7 +353,7 @@ class Database:
         offset = (_page - 1) * _limit
         return [
             Data(_table_name, item)
-            for item in self.__client.table(_table_name)
+            for item in await self.__client.table(_table_name)
             .select("*")
             .in_("id", _data.get_value(_table_name))  # Only include linked rows
             .eq("is_deleted", False)  # Only include non-deleted rows
@@ -301,7 +363,7 @@ class Database:
         ]
 
     #! Database data search and find
-    def search_data(self, _table_name: str, _field: str, _value: any):
+    async def search_data(self, _table_name: str, _field: str, _value: any):
         """
         Search for Data objects in the specified table by the given field and value.
 
@@ -314,16 +376,18 @@ class Database:
             List[Data]: A list of Data objects that match the search criteria.
         """
 
-        response = (
-            self.__client.table(_table_name)
-            .select("*")
-            .eq(_field, _value)
-            .eq("is_deleted", False)
-            .execute()
-        )
-        return [Data(_table_name, item) for item in response.data]
+        return [
+            Data(_table_name, item)
+            for item in await (
+                self.__client.table(_table_name)
+                .select("*")
+                .eq(_field, _value)
+                .eq("is_deleted", False)
+                .execute()
+            ).data
+        ]
 
-    def exists_data(self, _data: Data):
+    async def exists_data(self, _data: Data):
         """
         Check if a row exists in the database with the given Data object.
 
@@ -333,26 +397,13 @@ class Database:
         Returns:
             bool: True if the row exists in the database, False otherwise.
         """
-        return self.get_data(_data.get_value("type"), _data.get_value("id")) is not None
+        return (
+            await self.get_data(_data.get_value("type"), _data.get_value("id"))
+            is not None
+        )
 
     #! Database data update and upsert
-    """ Deprecate - replaced with upsert
-    def __insert_data(self, _data: Data):
-        '''
-        DO NOT USE THIS FUNCTION PUBLICLY
-
-        Insert a new row into the database with the given Data object.
-
-        Args:
-            _data (Data): The Data object to insert into the database.
-        '''
-
-        self.__client.table(_data.get_value("type")).insert(
-            {"id": _data.get_value("id"), "data": str(_data)}
-        ).execute()
-    """
-
-    def upsert_data(self, _data: Data):
+    async def upsert_data(self, _data: Data):
         """
         Update a row in the database with the given Data object.
 
@@ -366,11 +417,11 @@ class Database:
         _data.set_value("updated_at", now())
 
         # Update the data in the database
-        self.__client.table(_data.get_value("type")).upsert(
+        await self.__client.table(_data.get_value("type")).upsert(
             {"id": _data.get_value("id"), "data": str(_data)}
         ).execute()
 
-    def update_data(self, _data: Data):
+    async def update_data(self, _data: Data):
         """
         Update a row in the database with the given Data object.
 
@@ -386,7 +437,7 @@ class Database:
             "Use upsert_data(Data()) instead of update_data(Data())"
         )
 
-    def upsert_bulk_data(self, _table_name: str, _data_list: list[Data]):
+    async def upsert_bulk_data(self, _table_name: str, _data_list: list[Data]):
         """
         Upsert a list of Data objects into the given table.
 
@@ -401,10 +452,30 @@ class Database:
         update_payload = [
             {"id": data.get_value("id"), "data": str(data)} for data in _data_list
         ]
-        self.__client.table(_table_name).upsert(update_payload).execute()
+        await self.__client.table(_table_name).upsert(update_payload).execute()
 
     #! Database data delete and restore
-    def soft_delete(self, _table_name: str, _id: int):
+    async def list_deleted_data(self, _table_name: str):
+        """
+        Retrieve all soft-deleted rows (where is_deleted is True) from the specified table.
+
+        Args:
+            _table_name (str): The name of the table to retrieve the deleted rows from.
+
+        Returns:
+            list[Data]: A list of Data objects representing the soft-deleted rows.
+        """
+        response = await (
+            self.__client.table(_table_name)
+            .select("*")
+            .eq("is_deleted", True)  # Filter only the deleted rows
+            .execute()
+            .data
+        )
+
+        return [Data(_table_name, item) for item in response] if response else []
+
+    async def soft_delete(self, _table_name: str, _id: int):
         """
         Soft delete a record by marking it as deleted and adding a timestamp.
 
@@ -412,11 +483,13 @@ class Database:
             _table_name (str): The name of the table to soft delete from.
             _id (int): The ID of the record to be soft deleted.
         """
-        self.__client.table(_table_name).update(
+        await self.__client.table(_table_name).update(
             {"is_deleted": True, "deleted_at": now()}
         ).eq("id", _id).execute()
 
-    def hard_delete(self, _table_name: str, _id: int, _warn_override: bool = False):
+    async def hard_delete(
+        self, _table_name: str, _id: int, _warn_override: bool = False
+    ):
         """
         Permanently delete a record from the database.
 
@@ -429,9 +502,9 @@ class Database:
                 "Unless you are absolutely sure you want to delete FOREVER, use soft_delete() instead. Otherwise, pass True to _warn_override."
             )
 
-        self.__client.table(_table_name).delete().eq("id", _id).execute()
+        await self.__client.table(_table_name).delete().eq("id", _id).execute()
 
-    def restore(self, _table_name: str, _id: int):
+    async def restore(self, _table_name: str, _id: int):
         """
         Restore a soft deleted record by marking the 'is_deleted' flag as False.
 
@@ -439,11 +512,11 @@ class Database:
             _table_name (str): The table name to restore from.
             _id (int): The ID of the record to restore.
         """
-        self.__client.table(_table_name).update(
+        await self.__client.table(_table_name).update(
             {"is_deleted": False, "deleted_at": None}
         ).eq("id", _id).execute()
 
-    def bulk_soft_delete_after_time(self, _table_name: str, _cutoff_time: str):
+    async def bulk_soft_delete_after_time(self, _table_name: str, _cutoff_time: str):
         """
         Soft delete all records in a table that are older than a specified time.
 
@@ -451,11 +524,11 @@ class Database:
             _table_name (str): The name of the table to soft delete from.
             _cutoff_time (str): The cutoff time to soft delete records older than this time.
         """
-        self.__client.table(_table_name).update(
+        await self.__client.table(_table_name).update(
             {"is_deleted": True, "deleted_at": now()}
         ).lt("created_at", _cutoff_time).is_("is_deleted", False).execute()
 
-    def bulk_soft_delete(self, _table_name: str, _ids: list[int]):
+    async def bulk_soft_delete(self, _table_name: str, _ids: list[int]):
         """
         Soft delete multiple records by marking them as 'deleted'.
 
@@ -463,11 +536,11 @@ class Database:
             _table_name (str): The table name to soft delete from.
             ids (list[int]): The IDs of the records to be soft deleted.
         """
-        self.__client.table(_table_name).update(
+        await self.__client.table(_table_name).update(
             {"is_deleted": True, "deleted_at": now()}
         ).in_("id", _ids).execute()
 
-    def bulk_hard_delete(
+    async def bulk_hard_delete(
         self, _table_name: str, _ids: list[int], _warn_override: bool = False
     ):
         """
@@ -481,9 +554,9 @@ class Database:
             raise ValueError(
                 "Unless you are absolutely sure you want to delete FOREVER, use soft_delete() instead. Otherwise, pass True to _warn_override."
             )
-        self.__client.table(_table_name).delete().in_("id", _ids).execute()
+        await self.__client.table(_table_name).delete().in_("id", _ids).execute()
 
-    def bulk_restore(self, _table_name: str, _ids: list[int]):
+    async def bulk_restore(self, _table_name: str, _ids: list[int]):
         """
         Restore multiple soft deleted records by marking the 'is_deleted' flag as False.
 
@@ -491,11 +564,11 @@ class Database:
             _table_name (str): The table name to restore from.
             ids (list[int]): The IDs of the records to restore.
         """
-        self.__client.table(_table_name).update(
+        await self.__client.table(_table_name).update(
             {"is_deleted": False, "deleted_at": None}
         ).in_("id", _ids).execute()
 
-    def cleanup_soft_deleted(self, _table_name: str, _cutoff_date: str):
+    async def cleanup_soft_deleted(self, _table_name: str, _cutoff_date: str):
         """
         Permanently delete records that were soft deleted before a certain date.
 
@@ -503,12 +576,12 @@ class Database:
             _table_name (str): The table name to clean up.
             cutoff_date (str): The cutoff date to delete records older than this date.
         """
-        self.__client.table(_table_name).delete().lt("deleted_at", _cutoff_date).eq(
-            "is_deleted", True
-        ).execute()
+        await self.__client.table(_table_name).delete().lt(
+            "deleted_at", _cutoff_date
+        ).eq("is_deleted", True).execute()
 
     #! Database table backup and restore
-    def backup_table(self, _table_name: str, _output_file: str):
+    async def backup_table(self, _table_name: str, _output_file: str):
         """
         Back up the data in the given table to a file.
 
@@ -516,11 +589,11 @@ class Database:
             _table_name (str): The name of the table to backup.
             _output_file (str): The file to write the data to.
         """
-        response = self.__client.table(_table_name).select("*").execute()
+        response = await self.__client.table(_table_name).select("*").execute()
         with open(_output_file, "w") as f:
             json.dump(response.data, f, indent=4)
 
-    def restore_table(self, _table_name: str, _input_file: str):
+    async def restore_table(self, _table_name: str, _input_file: str):
         """
         Restore the data in the given table from a file.
 
@@ -530,4 +603,4 @@ class Database:
         """
         with open(_input_file, "r") as f:
             data = json.load(f)
-        self.__client.table(_table_name).upsert(data).execute()
+        await self.__client.table(_table_name).upsert(data).execute()
