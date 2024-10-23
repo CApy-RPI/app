@@ -443,7 +443,7 @@ class Database:
             {"is_deleted": False, "deleted_at": None}
         ).eq("id", _id).execute()
 
-    def bulk_soft_delete_after_time(self, _table_name: str, _cutoff_time: str):
+    def bulk_soft_delete_cutoff(self, _table_name: str, _cutoff_time: str):
         """
         Soft delete all records in a table that are older than a specified time.
 

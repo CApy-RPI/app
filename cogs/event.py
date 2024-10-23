@@ -1,14 +1,12 @@
 import discord
 from datetime import datetime, timezone
 from discord.ext import commands
-from modules.database import Database
-from modules.timestamp import now, format_time
+from modules.timestamp import now, format_time, get_timezone, localize_datetime
 
 
-class EventCog(commands.Cog):
+class Event(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db = Database()
 
     @commands.group(name="event", help="Manage events")
     async def event(self, ctx):
@@ -22,15 +20,15 @@ class EventCog(commands.Cog):
         """
         Handles output for !event list command
         """
-        guild_events = self.db.get_paginated_linked_data(
-            "event", self.db.get_data("guild", ctx.guild.id), 1, 10
+        guild_events = self.bot.db.get_paginated_linked_data(
+            "event", self.bot.db.get_data("guild", ctx.guild.id), 1, 10
         )
 
         if not guild_events:
-            await self._send_no_events_embed(ctx)
+            await self.send_no_events_embed(ctx)
             return
 
-        embed = self._create_events_embed(guild_events)
+        embed = self.create_events_embed(guild_events)
         await ctx.send(embed=embed)
 
     async def send_no_events_embed(self, ctx):
@@ -54,9 +52,7 @@ class EventCog(commands.Cog):
         )
 
         for event in guild_events:
-            event_details = (
-                f"{event.get_value('datetime')} \nEvent ID: {event.get_value('id')}"
-            )
+            event_details = f"{localize_datetime(event.get_value('datetime'), event.get_value('timezone'))} \nEvent ID: {event.get_value('id')}"
             embed.add_field(
                 name=event.get_value("name"), value=event_details, inline=False
             )
@@ -71,20 +67,26 @@ class EventCog(commands.Cog):
         date = await self.ask_for_event_date(ctx)
         time = await self.ask_for_event_time(ctx)
         location = await self.ask_for_event_location(ctx)
+        event_timezone = get_timezone(time)
 
         time_str = format_time(f"{date} {time}")
 
-        guild_data = self.db.get_data("guild", ctx.guild.id)
+        guild_data = self.bot.db.get_data("guild", ctx.guild.id)
         new_event_id = int(datetime.now(timezone.utc).timestamp() * 1000)
         new_event_data = self.create_event_data(
-            new_event_id, name, time_str, location, ctx.guild.id
+            new_event_id, name, time_str, location, event_timezone, ctx.guild.id
         )
 
-        self.db.upsert_data(new_event_data)
+        self.bot.db.upsert_data(new_event_data)
         guild_data.append_value("event", new_event_id)
-        self.db.upsert_data(guild_data)
+        self.bot.db.upsert_data(guild_data)
 
-        embed = self.create_confirmation_embed(name, time_str, location, new_event_id)
+        embed = self.create_confirmation_embed(
+            name,
+            localize_datetime(time_str, new_event_data.get_value("timezone")),
+            location,
+            new_event_id,
+        )
         await ctx.send(embed=embed)
 
     async def ask_for_event_name(self, ctx):
@@ -113,23 +115,29 @@ class EventCog(commands.Cog):
 
     async def ask_for_event_time(self, ctx):
         """Asks for the event time and returns it."""
-        await ctx.send("Please enter the event time (HH:MM AM/PM):")
+        await ctx.send("Please enter the event time (HH:MM AM/PM Timezone):")
         time_message = await self.bot.wait_for(
             "message", check=lambda m: m.author == ctx.author
         )
         return time_message.content
 
     def create_event_data(
-        self, event_id: int, name: str, time_str: str, location: str, guild_id: int
+        self,
+        event_id: int,
+        name: str,
+        time_str: str,
+        location: str,
+        event_timezone: str,
+        guild_id: int,
     ):
         """Creates a new event data object."""
-        new_event_data = self.db.create_data("event", event_id)
+        new_event_data = self.bot.db.create_data("event", event_id)
 
-        # Ensure all values are serializable
         new_event_data.set_value("name", name)  # Should be a string
-        new_event_data.set_value("datetime", time_str)  # Ensure this is a string
-        new_event_data.set_value("location", location)  # Ensure this is a string
-        new_event_data.set_value("guild_id", guild_id)  # Should be an int
+        new_event_data.set_value("datetime", time_str)  # string
+        new_event_data.set_value("location", location)  # string
+        new_event_data.set_value("timezone", event_timezone)  # string
+        new_event_data.set_value("guild_id", guild_id)  # int
 
         return new_event_data
 
@@ -150,12 +158,12 @@ class EventCog(commands.Cog):
     @event.command(name="delete", help="Deletes a specific event given id")
     async def delete_event(self, ctx, id: int):
         """
-        NOT FUNCTIONAL ON self.db.delete()
+        NOT FUNCTIONAL ON self.bot.db.delete()
         Deletes an event given event id
         """
 
         # Remove specified event from event table in db
-        self.db.soft_delete("event", id)  # does not work
+        self.bot.db.soft_delete("event", id)  # does not work
 
         # Create an embed to confirm the event was deleted
         embed = self.create_event_deletion_embed(id)
@@ -185,12 +193,12 @@ class EventCog(commands.Cog):
     @event.command(name="clear", help="Clears all upcoming events")
     async def clear_events(self, ctx):
         """
-        NOT FUNCTIONAL WAITING ON self.db.delete()
+        NOT FUNCTIONAL WAITING ON self.bot.db.delete()
         Deletes all future guild events
         """
 
         # Soft delete all future events associated with this guild
-        self.db.bulk_soft_delete_after_time("event", now())
+        self.bot.db.bulk_soft_delete_cutoff("event", now())
 
         # Create an embed to confirm the events have been cleared
         embed = self.create_clear_events_embed()
@@ -201,4 +209,4 @@ class EventCog(commands.Cog):
 
 # Setup function to load the cog
 async def setup(bot):
-    await bot.add_cog(EventCog(bot))
+    await bot.add_cog(Event(bot))
