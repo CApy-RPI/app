@@ -3,7 +3,7 @@ import discord
 import logging
 from discord.ext import commands
 from dotenv import load_dotenv
-from modules.email import Email
+#from modules.email import Email
 from modules.database import Database
 
 
@@ -13,7 +13,7 @@ class Bot(commands.AutoShardedBot):
         super().__init__(*args, **kwargs)
         self.logger = logging.getLogger("discord.main")
         self.logger.setLevel(logging.INFO)
-        self.email = Email()
+        #email.email = Email()
         self.db = Database()
 
     # Event that runs when the bot joins a new server

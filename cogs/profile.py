@@ -1,11 +1,11 @@
+import asyncio
 import discord
-import random
 import string
 import logging
 from discord.ext import commands
 from modules.database import Database
-from modules.email import Email
-
+from modules.email import get_verified_email
+import subprocess
 
 class Profile(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -246,23 +246,28 @@ class Profile(commands.Cog):
                 "What is your RPI email? Please type out your full email address! (Example: smithj23@rpi.edu)",
             )
             if rpi_email is None:
+                self.logger.info("User did not respond in time or did not input an email") 
                 return None
 
             if rpi_email[-8:] == "@rpi.edu":
-                # characters = string.ascii_letters + string.digits
-                # encypted = "".join(random.choice(characters) for _ in range(8))
-                # self.bot.email.send_email(rpi_email, "RPI Email Verification", encypted)
-
-                # await user.send("An email has been sent to your RPI email. Please verify your email")
-
-                # msg = await self.bot.wait_for(
-                #     "message", check=lambda message: message.author == user and isinstance(message.channel, discord.DMChannel), timeout=60
-                # )
-                # if(msg.content == encypted):
-                #     return rpi_email
-                # else:
-                #     await user.send(f"{msg} is not a valid code. Please enter a valid code.")
-                return rpi_email
+                self.logger.info("Starting Flask server for OAuth verification...")
+                flask_process = subprocess.Popen(
+                    ["python", "app.py"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE
+                )
+                oauth_url = f"http://localhost:5000/login?state={user.id}"
+                await user.send(f"To verify your RPI email, please authenticate here: {oauth_url}")
+                # Poll for verification result
+                for _ in range(50):  # Wait up to 100 seconds, checking every 2 seconds
+                    await asyncio.sleep(2)
+                    rpi_email = get_verified_email(user.id)
+                    if rpi_email:
+                        await user.send(f"Email verified successfully as {rpi_email}.")
+                        return rpi_email
+                
+                await user.send("Email verification timed out. Please try again.")
+                return None
             else:
                 await user.send(
                     f"{rpi_email} is not a valid email. Please enter a valid email."
@@ -279,6 +284,7 @@ class Profile(commands.Cog):
                 user, "What is your RIN? (Example: 123456789)"
             )
             if rin is None:
+                self.logger.info("User did not respond in time or did not input an RIN")
                 return None
 
             if rin.isdigit() and len(rin) == 9:
@@ -410,6 +416,7 @@ class Profile(commands.Cog):
 
             return msg.content
         except discord.TimeoutError:
+            self.logger.error("You took too long to respond! Please start the profile setup again.")
             await user.send(
                 "You took too long to respond! Please start the profile setup again."
             )
@@ -454,7 +461,6 @@ class Profile(commands.Cog):
         Shows your profile.
         """
         user = self.bot.db.get_data("user", ctx.author.id)
-        print(user.get_value("id"))
         if user == -1 or not user:
             await ctx.send(
                 "You don't have a profile. Please use the !profile command to create one."
