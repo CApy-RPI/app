@@ -168,15 +168,6 @@ class EventCog(commands.Cog):
             )
             self.bot.logger.warning(f"Attempted to delete nonexistent event ID {id}.")
 
-        #!CHECK THIS
-
-        # # Allow check mark (✅) and X (❌) emojis for users to react with
-        # await msg.add_reaction("✅")
-        # await msg.add_reaction("❌")
-
-        # # Add the event to the user_events dictionary
-        # self.attendance[msg.id] = {"yes": set(), "no": set()}
-
 
     def create_event_deletion_embed(self, id: int):
         """Creates an embed to confirm the event was deleted."""
@@ -287,7 +278,7 @@ class EventCog(commands.Cog):
     
     #! MAKE A FUNCTION TO SHOW SPECIFIC EVENTS THAT A SINGLE USER IS SIGNED UP TO ATTEND
 
-    @commands.command(name="announce", help="Announces an event in the announcements channel. Usage: !announce <event_id>")
+    @commands.command(name="announce", help="Announces an event in the announcements channel. Usage: !announce [event id]")
     async def announce(self, ctx, event_id: int):
         """Announces an event in the announcements channel"""
         # Get event data from the database
