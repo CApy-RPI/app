@@ -12,7 +12,7 @@ class Event(commands.Cog):
         self.bot = bot
         self.bot.logger.info("Event cog initialized.")
 
-    @commands.group(name="event", help="Manage events")
+    @commands.group(name="event", help="Access/Modify Event data.")
     async def event(self, ctx):
         if ctx.invoked_subcommand is None:
             embed = discord.Embed(
@@ -215,7 +215,10 @@ class Event(commands.Cog):
         embed.add_field(name="Event ID", value=str(event_id), inline=False)
         return embed
 
-    @event.command(name="delete", help="Deletes a specific event given id")
+    @event.command(
+        name="delete",
+        help="Deletes a specific event given id. Usage: !event delete [id]",
+    )
     async def delete_event(self, ctx, id: int):
         """
         Deletes an event given event id
@@ -254,7 +257,7 @@ class Event(commands.Cog):
         )
         return embed
 
-    @event.command(name="clear", help="Clears all upcoming events")
+    @event.command(name="clear", help="Clears all upcoming events. Usage: !event clear")
     async def clear_events(self, ctx):
         """
         Deletes all future guild events
