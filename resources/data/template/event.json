@@ -1,13 +1,11 @@
 {
     "type": "event",
-    "id": null,
     "guild_id": null,
     "name": "",
-    "date": "",
-    "time": "",
+    "datetime": "",
     "location": "",
     "description": "",
-    "users": [],
+    "user": [],
     "updated_at": "",
     "created_at": ""
 }

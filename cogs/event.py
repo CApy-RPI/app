@@ -1,9 +1,8 @@
 import discord
+from datetime import datetime, timezone
 from discord.ext import commands
 from modules.database import Database
-from datetime import datetime
-
-# Change this to fetch data from some sort of database
+from modules.timestamp import now, format_time
 
 
 class EventCog(commands.Cog):
@@ -11,99 +10,226 @@ class EventCog(commands.Cog):
         self.bot = bot
         self.db = Database()
 
-    @commands.command(name="events", help="Shows all upcoming events")
-    async def events(self, ctx):
-        """
-        Handles output for !event command
-        """
+    @commands.group(name="event", help="Manage events")
+    async def event(self, ctx):
+        if ctx.invoked_subcommand is None:
+            await ctx.send(
+                "Invalid event command. Use !event [list, add, delete, clear]"
+            )
 
-        # All events listed for current guild
-        guild_events = self.db.get_data("guild", ctx.guild.id).get_value("events")
+    @event.command(name="list", help="Shows all upcoming events")
+    async def list_events(self, ctx):
+        """
+        Handles output for !event list command
+        """
+        guild_events = self.db.get_paginated_linked_data(
+            "event", self.db.get_data("guild", ctx.guild.id), 1, 10
+        )
 
         if not guild_events:
-            embed = discord.Embed(
-                title="No Upcoming Events",
-                description="There are no events scheduled at the moment.",
-                color=discord.Color.red(),
-            )
-            await ctx.send(embed=embed)
+            await self._send_no_events_embed(ctx)
             return
 
-        # Create an embed for the events list
+        embed = self._create_events_embed(guild_events)
+        await ctx.send(embed=embed)
+
+    async def send_no_events_embed(self, ctx):
+        """
+        Sends an embed message when there are no upcoming events.
+        """
+        embed = discord.Embed(
+            title="No Upcoming Events",
+            description="There are no events scheduled at the moment.",
+            color=discord.Color.red(),
+        )
+        await ctx.send(embed=embed)
+
+    def create_events_embed(self, guild_events):
+        """
+        Creates an embed with the list of upcoming events.
+        """
         embed = discord.Embed(
             title="Upcoming Events",
-            # description="Here are the upcoming events:",
             color=discord.Color.green(),
         )
 
         for event in guild_events:
-            event_details = f"{event['date']} at {event['time']}"
-            embed.add_field(name=event["name"], value=event_details, inline=False)
+            event_details = (
+                f"{event.get_value('datetime')} \nEvent ID: {event.get_value('id')}"
+            )
+            embed.add_field(
+                name=event.get_value("name"), value=event_details, inline=False
+            )
 
-        # Send the embed message
+        return embed
+
+    @event.command(name="add", help="Add a new event. Usage: !event add")
+    async def add_event(self, ctx):
+        """Creates event, adds to guild events list, prints confirmation embed"""
+
+        name = await self.ask_for_event_name(ctx)
+        date = await self.ask_for_event_date(ctx)
+        time = await self.ask_for_event_time(ctx)
+        location = await self.ask_for_event_location(ctx)
+
+        time_str = format_time(f"{date} {time}")
+
+        guild_data = self.db.get_data("guild", ctx.guild.id)
+        new_event_id = int(datetime.now(timezone.utc).timestamp() * 1000)
+        new_event_data = self.create_event_data(
+            new_event_id, name, time_str, location, ctx.guild.id
+        )
+
+        self.db.upsert_data(new_event_data)
+        guild_data.append_value("event", new_event_id)
+        self.db.upsert_data(guild_data)
+
+        embed = self.create_confirmation_embed(name, time_str, location, new_event_id)
         await ctx.send(embed=embed)
 
-    # Command to add a new event, allowing spaces in the event name
-    @commands.command(
-        name="add_event",
-        help='Add a new event. Usage: !add_event "<name>" <mm-dd-yyyy> <00:00 PM>',
-    )
-    async def add_event(self, ctx, name: str, date: str, *time):
-        """Creates event, adds to guild events list, prints confirmation embed"""
-        # Fetch existing guild data or create new if it doesn't exist
-        guild_data = self.db.get_data("guild", ctx.guild.id)
-        if not guild_data:
-            guild_data = self.db.create_data("guild", ctx.guild.id)
-            self.db.update_data(guild_data)
+    async def ask_for_event_name(self, ctx):
+        """Asks for the event name and returns it."""
+        await ctx.send("Please enter the event name:")
+        name_message = await self.bot.wait_for(
+            "message", check=lambda m: m.author == ctx.author
+        )
+        return name_message.content
 
-        # Add the event to the guild events list
-        time_str = " ".join(time)
-        new_event = {"name": name, "date": date, "time": time_str}
-        guild_data.append_value("events", new_event)
+    async def ask_for_event_location(self, ctx):
+        """Asks for the event location and returns it."""
+        await ctx.send("Please enter the event location:")
+        location_message = await self.bot.wait_for(
+            "message", check=lambda m: m.author == ctx.author
+        )
+        return location_message.content
 
-        # Update the database with the new event
-        self.db.update_data(guild_data)
+    async def ask_for_event_date(self, ctx):
+        """Asks for the event date and returns it."""
+        await ctx.send("Please enter the event date (MM/DD/YY):")
+        date_message = await self.bot.wait_for(
+            "message", check=lambda m: m.author == ctx.author
+        )
+        return date_message.content
 
-        # Create an embed to confirm the event was added
+    async def ask_for_event_time(self, ctx):
+        """Asks for the event time and returns it."""
+        await ctx.send("Please enter the event time (HH:MM AM/PM):")
+        time_message = await self.bot.wait_for(
+            "message", check=lambda m: m.author == ctx.author
+        )
+        return time_message.content
+
+    def create_event_data(
+        self, event_id: int, name: str, time_str: str, location: str, guild_id: int
+    ):
+        """Creates a new event data object."""
+        new_event_data = self.db.create_data("event", event_id)
+
+        # Ensure all values are serializable
+        new_event_data.set_value("name", name)  # Should be a string
+        new_event_data.set_value("datetime", time_str)  # Ensure this is a string
+        new_event_data.set_value("location", location)  # Ensure this is a string
+        new_event_data.set_value("guild_id", guild_id)  # Should be an int
+
+        return new_event_data
+
+    def create_confirmation_embed(
+        self, name: str, time_str: str, location: str, event_id: int
+    ):
+        """Creates an embed to confirm the event was added."""
         embed = discord.Embed(
             title="Event Added",
             description=f"Event '{name}' has been added successfully!",
             color=discord.Color.blue(),
         )
-        embed.add_field(name="Date", value=date, inline=True)
-        embed.add_field(name="Time", value=time_str, inline=True)
+        embed.add_field(name="Date/Time", value=time_str, inline=True)
+        embed.add_field(name="Location", value=location, inline=True)
+        embed.add_field(name="Event ID", value=str(event_id), inline=False)
+        return embed
 
-        # Send the embed confirmation message and also store it
-        msg = await ctx.send(embed=embed)
+    @event.command(name="delete", help="Deletes a specific event given id. Usage: !event delete [id]")
+    async def delete_event(self, ctx, id: int):
+        """
+        NOT FUNCTIONAL ON self.db.delete()
+        Deletes an event given event id
+        """
+        self.bot.logger.info(
+            f"User {ctx.author.name} ({ctx.author.id}) is attempting to delete event with id {id}"
+        )
+        event_data = self.bot.db.get_data("event", id)
 
-        # Allow check mark (✅) and X (❌) emojis for users to react with
-        await msg.add_reaction("✅")
-        await msg.add_reaction("❌")
+        if event_data:
+            self.bot.db.soft_delete("event", id)
+            await ctx.send(embed=self.create_event_deletion_embed(id))
+            self.bot.logger.warning(f"Event ID {id} deleted successfully.")
+        else:
+            await ctx.send(
+                f"Event with ID '{id}' has already been deleted or does not exist."
+            )
+            self.bot.logger.warning(f"Attempted to delete nonexistent event ID {id}.")
 
-        # Add the event to the user_events dictionary
-        self.attendance[msg.id] = {"yes": set(), "no": set()}
+        #!CHECK THIS
+
+        # # Allow check mark (✅) and X (❌) emojis for users to react with
+        # await msg.add_reaction("✅")
+        # await msg.add_reaction("❌")
+
+        # # Add the event to the user_events dictionary
+        # self.attendance[msg.id] = {"yes": set(), "no": set()}
 
 
-    # Command to clear all events
-    @commands.command(name="clear_events", help="Clears all upcoming events")
-    async def clear_events(self, ctx):
-        user_events.clear()
+    def create_event_deletion_embed(self, id: int):
+        """Creates an embed to confirm the event was deleted."""
+        embed = discord.Embed(
+            title="Event Deleted",
+            description=f"Event with ID '{id}' has been deleted successfully!",
+            color=discord.Color.red(),
+        )
+        embed.add_field(name="Event ID", value=str(id), inline=False)
+        return embed
+
+    def create_clear_events_embed(self):
+        """Creates an embed to confirm all events have been cleared."""
         embed = discord.Embed(
             title="Events Cleared",
             description="All events have been successfully cleared.",
             color=discord.Color.orange(),
         )
+        return embed
+
+    @event.command(name="clear", help="Clears all upcoming events. Usage: !event clear")
+    async def clear_events(self, ctx):
+        """
+        Deletes all future guild events
+        """
+        self.bot.logger.info(
+            f"User {ctx.author} is clearing all events for guild {ctx.guild.id}."
+        )
+
+        # Soft delete all future events associated with this guild
+        self.bot.db.bulk_soft_delete_cutoff("event", now())
+
+        # Create an embed to confirm the events have been cleared
+        embed = self.create_clear_events_embed()
+
+        # Send the embed confirmation message
         await ctx.send(embed=embed)
+        self.bot.logger.info("All events cleared successfully.")
+
+
+
+
 
     @commands.Cog.listener()
     async def reaction_attendance_add(self, reaction, user):
-        """Handles reactions to track user sign up"""
+        """Handles reactions to track user sign up for an event"""
         if user.bot: # Ignore the bot reactions
             return
         
         message_id = reaction.message.id
-
         guild_data = self.db.get_data("guild", reaction.message.guild.id)
+       
+       # search for event by event id
         event = next((event for event in guild_data.get_value("events") if event["id"] == message_id), None)  
 
         if event:
@@ -118,12 +244,14 @@ class EventCog(commands.Cog):
 
     @commands.Cog.listener()
     async def reaction_attendance_remove(self, reaction, user):
-        """Handles reactions to track user removal"""
+        """Handles reactions to track user removal for an event"""
         if user.bot: # Ignore the bot reactions
             return
         
         message_id = reaction.message.id
         guild_data = self.db.get_data("guild", reaction.message.guild.id)
+
+        # search for event by event id
         event = next((event for event in guild_data.get_value("events") if event["id"] == message_id), None)
 
         if event:
@@ -132,33 +260,30 @@ class EventCog(commands.Cog):
 
             self.db.update_data(guild_data)
 
-
-    # MAKE A FUNCTION TO SHOW ADMIN ALL ATTENDEES FOR AN EVENT
     #! RESTRICT REGULAR MEMBERS FROM USING THIS FEATURE
-    @commands.command(name="attendance", help="Shows attendance for upcoming events")
-    async def all_events_attendance(self, ctx, message_id: int): 
-        """"Displays all attendance for a certain events"""
-        if message_id not in self.attendance:
-            await ctx.send("No attendance found for this event")
+    # Shows admin all the users who are registered for a specific event
+    @commands.command(name="attendance", help="Shows attendance for a specific event (Admin Only). Usage: !attendance [event id]")
+    @commands.has_permissions(administrator=True)
+    async def show_event_attendance(self, ctx, message_id: int): 
+        """"Displays attendance for a specific event"""
+        guild_data = self.db.get_data("guild", ctx.guild.id)
+        event = next((event for event in guild_data.get_value("events") if event["id"] == event_id), None)
 
-    yes_list = "\n".join([user.name for user in self.attendance[message_id]["yes"]])
-    no_list = "\n".join([user.name for user in self.attendance[message_id]["no"]])
+        if not event or not event.get["user"]:
+            await ctx.send("Event not found")
+            return
 
-    embed = discord.Embed(
-        title="Attendance",
-        description=f"**Yes:**\n{yes_list}\n\n**No:**\n{no_list}",
-        color=discord.Color.green()
-    )
-    embed.add_field(name="Going✅", value=yes_list or "Empty", inline=False)
-    embed.add_field(name="Not Going❌", value=no_list or "Empty", inline=False)
+        attendees = [self.bot.get_user(user_id).name for user_id in event["user"]]
+        attendee_list = "\n".join(attendees) if attendees else "No attendees yet."
 
-    await ctx.send(embed=embed)
+        embed = discord.Embed(
+            title="Event Attendance",
+            description=f"**Event ID:** {event_id}",
+            color=discord.Color.green(),
+        )
+        embed.add_field(name="Attendees", value=attendee_list, inline=False)
 
-    # embed = discord.Embed(
-    #     title="Attendance",
-    #     description=f"Event ID: {message_id}",
-    #     color=discord.Color.blue(),
-    # )
+        await ctx.send(embed=embed)
     
     #! MAKE A FUNCTION TO SHOW SPECIFIC EVENTS THAT A SINGLE USER IS SIGNED UP TO ATTEND
 
@@ -183,7 +308,7 @@ class EventCog(commands.Cog):
         # Create the embed for announcements
         embed = discord.Embed(
             title="Event Announcement",
-            description=f"**Event:** {event['name']}\n**Date:** {event['date']}\n**Time:** {event['time']}",
+            description=f"**Event:** {event['name']}\n**Date/Time:** {event['datetime']}\n**Location:** {event['location']}",
             color=discord.Color.purple(),
         )
         
