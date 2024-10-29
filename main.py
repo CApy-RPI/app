@@ -71,7 +71,8 @@ class Bot(commands.AutoShardedBot):
         )
 
     async def on_message(self, message):
-        await self.process_commands(message)
+        if message.channel.id == self.allowed_channel_id:
+            await self.process_commands(message)
 
     async def on_command(self, ctx):
         self.logger.info(f"Command executed: {ctx.command} by {ctx.author}")
@@ -84,6 +85,14 @@ class Bot(commands.AutoShardedBot):
 def main():
     load_dotenv()
     bot = Bot(command_prefix="!", intents=discord.Intents.all())
+
+    # Set the allowed channel ID from environment
+    allowed_channel_id = os.getenv("ALLOWED_CHANNEL_ID")
+    if allowed_channel_id:
+        bot.allowed_channel_id = int(allowed_channel_id)
+    else:
+        raise ValueError("ALLOWED_CHANNEL_ID is not set in the environment")
+
     bot.run(os.getenv("DEV_BOT_TOKEN"), reconnect=True)
 
 
