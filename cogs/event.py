@@ -57,6 +57,31 @@ class Event(commands.Cog):
         embed = self.create_events_embed(guild_events)
         await ctx.send(embed=embed)
 
+    @event.command(
+        name="show",
+        help="Show details of a specific event. Usage: !event show [event_id]",
+    )
+    async def show_event(self, ctx, event_id: int):
+        """Displays the details of a specific event by its ID."""
+        self.bot.logger.info(
+            f"User {ctx.author} requested details for event ID: {event_id}."
+        )
+
+        event_data = self.bot.db.get_data("event", event_id)
+
+        if not event_data:
+            await ctx.send(f"No event found with ID: {event_id}.")
+            return
+
+        embed = self.create_event_embed(
+            name=event_data.get_value("name"),
+            event_description=event_data.get_value("description"),
+            time_str=event_data.get_value("datetime"),
+            location=event_data.get_value("location"),
+            event_id=event_data.get_value("id"),
+        )
+        await ctx.send(embed=embed)
+
     async def send_no_events_embed(self, ctx):
         """
         Sends an embed message when there are no upcoming events.
@@ -93,6 +118,7 @@ class Event(commands.Cog):
         self.bot.logger.info(f"User {ctx.author} is adding a new event.")
 
         name = await self.ask_for_event_name(ctx)
+        event_description = await self.ask_for_event_description(ctx)
         date = await self.ask_for_event_date(ctx)
         time = await self.ask_for_event_time(ctx)
         location = await self.ask_for_event_location(ctx)
@@ -103,7 +129,13 @@ class Event(commands.Cog):
         guild_data = self.bot.db.get_data("guild", ctx.guild.id)
         new_event_id = int(datetime.now(timezone.utc).timestamp() * 1000)
         new_event_data = self.create_event_data(
-            new_event_id, name, time_str, location, event_timezone, ctx.guild.id
+            new_event_id,
+            name,
+            event_description,
+            time_str,
+            location,
+            event_timezone,
+            ctx.guild.id,
         )
 
         self.bot.db.upsert_data(new_event_data)
@@ -112,12 +144,24 @@ class Event(commands.Cog):
 
         embed = self.create_confirmation_embed(
             name,
+            event_description,
             localize_datetime(time_str, new_event_data.get_value("timezone")),
             location,
             new_event_id,
         )
         await ctx.send(embed=embed)
         self.bot.logger.info(f"Event '{name}' added with ID {new_event_id}.")
+
+    def create_confirmation_embed(
+        self, name, event_description, datetime_str, location, event_id
+    ):
+        """Creates a confirmation embed for the added event."""
+        embed = self.create_event_embed(
+            name, event_description, datetime_str, location, event_id
+        )
+        embed.title = "Event Added Successfully!"
+        embed.description = f"The event '{name}' has been added to the calendar."
+        return embed
 
     async def ask_for_event_name(self, ctx):
         """Asks for the event name and returns it."""
@@ -127,6 +171,17 @@ class Event(commands.Cog):
         )
         self.bot.logger.info(f"Event name received: {name_message.content}")
         return name_message.content
+
+    async def ask_for_event_description(self, ctx):
+        """Asks for the event description and returns it."""
+        await ctx.send("Please enter the event description:")
+        description_message = await self.bot.wait_for(
+            "message", check=lambda m: m.author == ctx.author
+        )
+        self.bot.logger.info(
+            f"Event description received: {description_message.content}"
+        )
+        return description_message.content
 
     async def ask_for_event_date(self, ctx):
         """Asks for the event date in mm/dd/yy format and returns it."""
@@ -184,6 +239,7 @@ class Event(commands.Cog):
         self,
         event_id: int,
         name: str,
+        description: str,
         time_str: str,
         location: str,
         event_timezone: str,
@@ -193,6 +249,7 @@ class Event(commands.Cog):
         new_event_data = self.bot.db.create_data("event", event_id)
 
         new_event_data.set_value("name", name)  # Should be a string
+        new_event_data.set_value("description", description)
         new_event_data.set_value("datetime", time_str)  # string
         new_event_data.set_value("location", location)  # string
         new_event_data.set_value("timezone", event_timezone)  # string
@@ -201,13 +258,18 @@ class Event(commands.Cog):
         self.bot.logger.info(f"Event data created for event ID {event_id}.")
         return new_event_data
 
-    def create_confirmation_embed(
-        self, name: str, time_str: str, location: str, event_id: int
+    def create_event_embed(
+        self,
+        name: str,
+        event_description: str,
+        time_str: str,
+        location: str,
+        event_id: int,
     ):
         """Creates an embed to confirm the event was added."""
         embed = discord.Embed(
-            title="Event Added",
-            description=f"Event '{name}' has been added successfully!",
+            title=name,
+            description=event_description,
             color=discord.Color.blue(),
         )
         embed.add_field(name="Date/Time", value=time_str, inline=True)
