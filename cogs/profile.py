@@ -4,7 +4,7 @@ import string
 import logging
 from discord.ext import commands
 from modules.database import Database
-from modules.email import get_verified_email
+from modules.email_auth import store_verified_email, get_verified_email
 import subprocess
 
 class Profile(commands.Cog):
@@ -265,6 +265,9 @@ class Profile(commands.Cog):
                     if rpi_email:
                         await user.send(f"Email verified successfully as {rpi_email}.")
                         return rpi_email
+                    
+                self.logger.info("Flask server timed out. Terminating process...")
+                flask_process.terminate()
                 
                 await user.send("Email verification timed out. Please try again.")
                 return None

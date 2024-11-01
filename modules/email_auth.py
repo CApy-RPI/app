@@ -6,6 +6,8 @@ import os
 load_dotenv()
 verified_emails = {}
 app = Flask(__name__)
+app.config['WTF_CSRF_ENABLED'] = False  # Disable CSRF for testing
+
 app.secret_key = os.environ.get("SECRET_KEY")
 oauth = OAuth(app)
 
@@ -36,6 +38,8 @@ def auth_callback():
     # Check if the email belongs to RPI
     if user_info['email'].endswith('@rpi.edu'):
         # Proceed with your club management logic
+        discord_user_id = user_info['id']
+        store_verified_email(discord_user_id, user_info['email'])
         session['user'] = user_info
         return redirect(url_for('dashboard'))
     else:
