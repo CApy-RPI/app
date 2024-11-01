@@ -3,6 +3,7 @@
     "guild_id": null,
     "name": "",
     "datetime": "",
+    "timezone": "",
     "location": "",
     "description": "",
     "user": [],

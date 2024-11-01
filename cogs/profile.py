@@ -394,7 +394,7 @@ class Profile(commands.Cog):
                     f"Invalid choice. Please enter a number between 1 and {len(aspects)}"
                 )
         await self.show_user_profile(ctx, updated_user)
-        self.bot.db.update_data(updated_user)
+        self.bot.db.upsert_data(updated_user)
 
     async def user_choice(self, user):
         """
