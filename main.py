@@ -71,7 +71,9 @@ class Bot(commands.AutoShardedBot):
         )
 
     async def on_message(self, message):
-        if message.channel.id == self.allowed_channel_id:
+        if self.allowed_channel_id is None:
+            await self.process_commands(message)
+        elif message.channel.id == self.allowed_channel_id:
             await self.process_commands(message)
 
     async def on_command(self, ctx):
@@ -86,12 +88,19 @@ def main():
     load_dotenv()
     bot = Bot(command_prefix="!", intents=discord.Intents.all())
 
-    # Set the allowed channel ID from environment
+    """
+    DEVS: If testing bot in certain channel to avoid conflicts with other bot instances set CHANNEL_LOCK = "True" in .env
+    otherwise can remove CHANNEL_LCOK or set CHANNEL_LOCK = "False"
+    """
+    # Set the allowed channel ID and channel lock from environment
     allowed_channel_id = os.getenv("ALLOWED_CHANNEL_ID")
-    if allowed_channel_id:
+    channel_lock_str = os.getenv("CHANNEL_LOCK") or "False"
+    channel_lock = channel_lock_str == "True"
+
+    if allowed_channel_id and channel_lock:
         bot.allowed_channel_id = int(allowed_channel_id)
     else:
-        raise ValueError("ALLOWED_CHANNEL_ID is not set in the environment")
+        bot.allowed_channel_id = None
 
     bot.run(os.getenv("DEV_BOT_TOKEN"), reconnect=True)
 
