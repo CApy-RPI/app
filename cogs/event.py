@@ -40,23 +40,6 @@ class Event(commands.Cog):
             )
             await ctx.send(embed=embed)
 
-    # @event.command(name="list", help="Shows all upcoming events")
-    # async def list_events(self, ctx):
-    #     """
-    #     Handles output for !event list command
-    #     """
-    #     self.bot.logger.info(f"User {ctx.author} requested the list of events.")
-    #     guild_events = self.bot.db.get_paginated_linked_data(
-    #         "event", self.bot.db.get_data("guild", ctx.guild.id), 1, 10
-    #     )
-
-    #     if not guild_events:
-    #         await self.send_no_events_embed(ctx)
-    #         return
-
-    #     embed = self.create_events_embed(guild_events)
-    #     await ctx.send(embed=embed)
-
     @event.command(name="list", help="Shows all upcoming events")
     async def list_events(self, ctx):
         """
@@ -300,10 +283,124 @@ class Event(commands.Cog):
         await ctx.send(embed=embed)
         self.bot.logger.info("All events cleared successfully.")
 
+    #! RESTRICT REGULAR MEMBERS FROM USING THIS FEATURE
+    # Shows admin all the users who are registered for a specific event
+    @commands.command(name="attendance", help="Shows attendance for a specific event (Admin Only). Usage: !attendance [event id]")
+    async def show_event_attendance(self, ctx, message_id: int): 
+        """"Displays attendance for a specific event"""
+        guild_data = self.bot.db.get_data("guild", ctx.guild.id)
+        event = next((event for event in guild_data.get_value("event") if event["id"] == event_id), None)
+
+        if not event or not event.get("user"):
+            await ctx.send("Event not found")
+            return
+
+        attendees = [self.bot.get_user(user_id).name for user_id in event["user"]]
+        attendee_list = "\n".join(attendees) if attendees else "No attendees yet."
+
+        embed = discord.Embed(
+            title="Event Attendance",
+            description=f"**Event ID:** {event_id}",
+            color=discord.Color.green(),
+        )
+        embed.add_field(name="Attendees", value=attendee_list, inline=False)
+
+        await ctx.send(embed=embed)
+    
+    #! MAKE A FUNCTION TO SHOW SPECIFIC EVENTS THAT A SINGLE USER IS SIGNED UP TO ATTEND
+
+    @commands.command(name="announce", help="Announces an event in the announcements channel. Usage: !announce [event id]")
+    async def announce(self, ctx, event_id: int):
+        """
+        Announces an event in the announcements channel
+        """
+
+        # Get event data from the database
+        event = self.bot.db.get_data("event", event_id)
+
+        if not event:
+            await ctx.send("ERROR: Event not found.")
+            return
+        
+        # Find the #announcements channel
+        announcement_channel = discord.utils.get(ctx.guild.text_channels, name="announcements")
+
+        # Create it if it doesn't exist
+        if announcement_channel is None:
+            try:
+                # Create the #announcements channel with permissions allowing only the bot to send messages
+                announcement_channel = await ctx.guild.create_text_channel("announcements")
+                await announcement_channel.set_permissions(ctx.guild.default_role, send_messages=False)
+                await announcement_channel.set_permissions(ctx.guild.me, send_messages=True)
+            except discord.Forbidden:
+                await ctx.send("ERROR: I do not have permission to create channels.")
+                return
+        else:
+            # If the channel already exists, ensure permissions are set correctly
+            await announcement_channel.set_permissions(ctx.guild.default_role, send_messages=False)
+            await announcement_channel.set_permissions(ctx.guild.me, send_messages=True)
+
+        # Create the embed for announcements
+        embed = discord.Embed(
+            title="Event Announcement",
+            description=f"**Event:** {event.get_value('name')}\n**Date/Time:** {event.get_value('datetime')}\n**Location:** {event.get_value('location')}",
+            color=discord.Color.purple(),
+        )
+
+        try:
+            # Send announcement to the channel and add reactions for attendance
+            message = await announcement_channel.send(embed=embed)
+            await message.add_reaction("✅")  # Add reaction for attendance
+            await message.add_reaction("❌")  # Add reaction for decline
+            await announcement_channel.send(f"React with ✅ to attend or ❌ to decline")
+
+            # Update event data
+            self.bot.db.upsert_data(event) 
+
+            await ctx.send(f"Event announced in #{announcement_channel.name}!")
+            
+            self.bot.logger.info(f"Event announced successfully in #{announcement_channel.name} with message ID {message.id}. NUM 7")  #! Debug statement 7
+        except discord.Forbidden:
+            await ctx.send("ERROR: I do not have permission to send messages or add reactions in the announcements channel.") 
+
+    async def reaction_attendance_remove(self, payload):
+        """
+        Removes user from event attendance list
+        """
+        self.bot.logger.info(f"Reaction removed: {payload.user_id}")
+
+        event_id = payload.message_id
+        self.bot.logger.info(f"Event ID: {event_id}")
+
+        event_data = self.bot.db.get_data("event", event_id)
+        if not event_data:
+            return
+        event_data.remove_value("attendees", payload.user_id)
+        self.bot.db.upsert_data(event_data)
+
+    async def reaction_attendance_add(self, payload):
+        """
+        Adds user to event attendance list
+        """
+        self.bot.logger.info(f"Reaction added: {payload.user_id}")
+        
+        event_id = payload.message_id
+        self.bot.logger.info(f"Event ID: {event_id}")
+
+        event_data = self.bot.db.get_data("event", event_id)
+        if not event_data:
+            return
+        event_data.append_unique_value("attendees", payload.user_id)
+        self.bot.db.upsert_data(event_data)
+       
     # @commands.Cog.listener()
     # async def reaction_attendance_add(self, reaction, user):
-    #     """Handles reactions to track user sign up for an event"""
-    #     if user.bot: # Ignore the bot reactions
+    #     """
+    #     Handles reactions to track user sign up for an event
+    #     """
+
+    #     # Ignore the bot reactions
+    #     if user.bot: 
     #         return
         
     #     message_id = reaction.message.id
@@ -346,136 +443,6 @@ class Event(commands.Cog):
     #             event["user"].remove(user.id)
 
     #         self.bot.db.update_data(guild_data)
-
-    @commands.Cog.listener()
-    async def reaction_attendance_add(self, reaction, user):
-        """Handles reactions to track user sign up for an event, limiting to one emoji."""
-        if user.bot:  # Ignore bot reactions
-            return
-
-        message_id = reaction.message.id
-        guild_data = self.bot.db.get_data("guild", reaction.message.guild.id)
-
-        # Search for event by event ID
-        event = next((event for event in guild_data.get_value("event", []) if event["id"] == message_id), None)
-
-        if event:
-            try:
-                # Check if the user has already reacted with the other emoji
-                other_emoji = "❌" if str(reaction.emoji) == "✅" else "✅"
-                for react in reaction.message.reactions:
-                    if str(react.emoji) == other_emoji and user in await react.users().flatten():
-                        await reaction.message.remove_reaction(other_emoji, user)
-
-                # Process the current reaction
-                if str(reaction.emoji) == "✅":
-                    if user.id not in event["user"]:
-                        event["user"].append(user.id)
-                elif str(reaction.emoji) == "❌":
-                    if user.id in event["user"]:
-                        event["user"].remove(user.id)
-
-            except KeyError as e:
-                self.bot.logger.error(f"Error: {e} in reaction_attendance_add")
-                return
-            except Exception as e:
-                self.bot.logger.error(f"Error: {e} in reaction_attendance_add")
-                return
-
-            self.bot.db.update_data(guild_data)
-
-    @commands.Cog.listener()
-    async def reaction_attendance_remove(self, reaction, user):
-        """Handles reaction removal for attendance, keeping only one reaction."""
-        if user.bot:  # Ignore bot reactions
-            return
-
-        message_id = reaction.message.id
-        guild_data = self.bot.db.get_data("guild", reaction.message.guild.id)
-
-        # Search for event by event ID
-        event = next((event for event in guild_data.get_value("event", []) if event["id"] == message_id), None)
-
-        if event and str(reaction.emoji) == "✅" and user.id in event["user"]:
-            event["user"].remove(user.id)
-            self.bot.db.update_data(guild_data)
-
-
-    #! RESTRICT REGULAR MEMBERS FROM USING THIS FEATURE
-    # Shows admin all the users who are registered for a specific event
-    @commands.command(name="attendance", help="Shows attendance for a specific event (Admin Only). Usage: !attendance [event id]")
-    async def show_event_attendance(self, ctx, message_id: int): 
-        """"Displays attendance for a specific event"""
-        guild_data = self.bot.db.get_data("guild", ctx.guild.id)
-        event = next((event for event in guild_data.get_value("event") if event["id"] == event_id), None)
-
-        if not event or not event.get("user"):
-            await ctx.send("Event not found")
-            return
-
-        attendees = [self.bot.get_user(user_id).name for user_id in event["user"]]
-        attendee_list = "\n".join(attendees) if attendees else "No attendees yet."
-
-        embed = discord.Embed(
-            title="Event Attendance",
-            description=f"**Event ID:** {event_id}",
-            color=discord.Color.green(),
-        )
-        embed.add_field(name="Attendees", value=attendee_list, inline=False)
-
-        await ctx.send(embed=embed)
-    
-    #! MAKE A FUNCTION TO SHOW SPECIFIC EVENTS THAT A SINGLE USER IS SIGNED UP TO ATTEND
-
-    @commands.command(name="announce", help="Announces an event in the announcements channel. Usage: !announce [event id]")
-    async def announce(self, ctx, event_id: int):
-        """Announces an event in the announcements channel"""
-        # Get event data from the database
-        event = self.bot.db.get_data("event", event_id)
-
-        if not event:
-            await ctx.send("Event not found")
-            return
-        
-        # Find the Announcements channel
-        announcement_channel = discord.utils.get(ctx.guild.text_channels, name="announcements")
-
-        # Create it if it doesn't exist
-        if announcement_channel is None:
-            try:
-                # Create the announcements channel with permissions allowing only the bot to send messages
-                announcement_channel = await ctx.guild.create_text_channel("announcements")
-                await announcement_channel.set_permissions(ctx.guild.default_role, send_messages=False)
-                await announcement_channel.set_permissions(ctx.guild.me, send_messages=True)
-            except discord.Forbidden:
-                await ctx.send("I do not have permission to create channels.")
-                return
-        else:
-            # If the channel already exists, ensure permissions are set correctly
-            await announcement_channel.set_permissions(ctx.guild.default_role, send_messages=False)
-            await announcement_channel.set_permissions(ctx.guild.me, send_messages=True)
-
-        # Create the embed for announcements
-        embed = discord.Embed(
-            title="Event Announcement",
-            description=f"**Event:** {event.get_value('name')}\n**Date/Time:** {event.get_value('datetime')}\n**Location:** {event.get_value('location')}",
-            color=discord.Color.purple(),
-        )
-
-        try:
-            # Send announcement to the channel and add reactions for attendance
-            message = await announcement_channel.send(embed=embed)
-            await message.add_reaction("✅")  # Add reaction for attendance
-            await message.add_reaction("❌")  # Add reaction for decline
-
-            # Save the announcement message ID to the event data
-            event.set_value("announcement_id", message.id)
-            self.bot.db.update_data(event)  # Save event with announcement ID
-
-            await ctx.send(f"Event announced in #{announcement_channel.name}")
-        except discord.Forbidden:
-            await ctx.send("I do not have permission to send messages or add reactions in the announcements channel.")
-        
 
 # Setup function to load the cog
 async def setup(bot):
