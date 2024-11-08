@@ -7,6 +7,12 @@
     "location": "",
     "description": "",
     "user": [],
+    "message_id": null,
+    "reactions": {
+        "yes": 0,
+        "no": 0,
+        "maybe": 0
+    },
     "updated_at": "",
     "created_at": ""
 }
