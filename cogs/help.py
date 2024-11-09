@@ -32,12 +32,17 @@ class HelpCommand(commands.HelpCommand):
             await ctx.send("Custom Help Command Active!")
 
             for cog, commands in mapping.items():
-                if command_list := [
-                    command.name for command in commands if not command.hidden
-                ]:
+            # Filter visible commands and gather name and help description
+                command_list = [
+                    f"**{command.name}** - {command.help or 'No description provided'}"
+                    for command in commands if not command.hidden
+                ]
+                if command_list:
                     cog_name = cog.qualified_name if cog else "No Category"
                     embed.add_field(
-                        name=cog_name, value=", ".join(command_list), inline=False
+                        name=cog_name,
+                        value="\n".join(command_list),
+                        inline=False
                     )
 
             await ctx.send(embed=embed)

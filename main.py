@@ -3,9 +3,9 @@ import discord
 import logging
 from discord.ext import commands
 from dotenv import load_dotenv
-#from modules.email import Email
 from modules.database import Database
-
+from modules.email_auth import create_app
+import threading
 
 # Create the bot class, inheriting from commands.AutoShardedBot
 class Bot(commands.AutoShardedBot):
@@ -80,8 +80,12 @@ class Bot(commands.AutoShardedBot):
     async def on_command_error(self, ctx, error):
         self.logger.error(f"{ctx.command}: {error}")
         await ctx.send(error)
+    
 
 
+def run_flask():
+    app = create_app()
+    app.run(port=5000)
 def main():
     load_dotenv()
     bot = Bot(command_prefix="!", intents=discord.Intents.all())
@@ -97,4 +101,6 @@ def main():
 
 
 if __name__ == "__main__":
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.start()
     main()
