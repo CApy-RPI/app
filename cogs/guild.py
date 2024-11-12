@@ -28,21 +28,23 @@ class Guild(commands.Cog):
         await ctx.send(embed=embed)
 
     @settings.command(name="set", help="Change a server setting")
+    @commands.has_permissions(administrator=True)
     async def add_event(self, ctx, name, value):
         guild = self.bot.db.get_data("guild", ctx.guild.id)
         try:
-            current_value = guild.get_value(name)
-            #guild.set_value(value)
+            previous_value = guild.get_value(name)
+            guild.set_value(str(name), value)
+            self.bot.db.upsert_data(guild)
             valid_embed = discord.Embed(
                 title="Success!",
-                description="'" + name + "' changed to '" + value + "' from '" + current_value + "'.",
+                description=f"'{name}' changed to '{value}' from '{previous_value}'.",
                 color=discord.Color.green(),
             )
             await ctx.send(embed=valid_embed)
             return
         except:
             fail_embed = discord.Embed(
-                title="Setting " + name + " does not exist!",
+                title=f"Setting {name} does not exist!",
                 description="Type the setting name exactly as shown",
                 color=discord.Color.red(),
             )
