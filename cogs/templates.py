@@ -36,6 +36,37 @@ class Templates(commands.Cog):
         self.logger.info(message)
         await ctx.send(embed=embed)
 
+    #! Template code for a command that cannot be run without the set eboard role
+    @commands.command(name="eboard_required", help="EBOARD - Shows the bot's latency.")
+    async def admin_ping(self, ctx):
+        if self.bot.db.get_data("guild", ctx.guild.id).get_value("eboard_role") == None:
+            embed = discord.Embed(
+                title="eboard role not configured!",
+                description=f"Use '!settings set eboard_role' to fix this",
+                color=discord.Color.red(),
+            )
+            await ctx.send(embed=embed)
+            return
+        
+        if not commands.has_role(self.bot.db.get_data("guild", ctx.guild.id).get_value("eboard_role")):
+            embed = discord.Embed(
+                title="Missing required eboard role!",
+                color=discord.Color.red(),
+            )
+            await ctx.send(embed=embed)
+            return
+        
+        message = f"⏱ {round(self.bot.latency * 1000)} ms Latency!"
+        embed = discord.Embed(
+            title="Ping (But eboard)",
+            description=message,
+            color=discord.Color.pink(),
+        )
+        self.logger.info(message)
+        await ctx.send(embed=embed)
+
+
+
     #! Template code for a command that can optionally run with additional admin functionality 
     # w/ input of admin param. If the user attempts to run admin without permissions, the command will be run as usual.
     @commands.command(name="admin_optional", help="Shows the bot's latency, use optional admin param to change to red")
