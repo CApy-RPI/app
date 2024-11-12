@@ -95,8 +95,7 @@ def main():
     # Set the allowed channel ID and channel lock from environment
     allowed_channel_id = os.getenv("ALLOWED_CHANNEL_ID")
     channel_lock_str = os.getenv("CHANNEL_LOCK") or "False"
-    channel_lock = channel_lock_str == "True"
-
+    channel_lock = channel_lock_str == "TRUE"
     if allowed_channel_id and channel_lock:
         bot.allowed_channel_id = int(allowed_channel_id)
     else:

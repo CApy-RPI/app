@@ -4,60 +4,53 @@ from datetime import datetime, timezone
 from discord.ext import commands
 from modules.timestamp import now, format_time, get_timezone, localize_datetime
 
-# Configure logging
 
-
-class Event(commands.Cog):
+class Events(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.bot.logger.info("Event cog initialized.")
 
-    @commands.group(name="event", help="Access/Modify Event data.")
-    async def event(self, ctx):
+    @commands.group(name="events", help="Access/Modify Event data.")
+    async def events(self, ctx):
+        """
+        Lists all guild events
+        """
+
         if ctx.invoked_subcommand is None:
-            embed = discord.Embed(
-                title="Event Command Help",
-                description="Here are the available event commands and their usage:",
-                color=discord.Color.blue(),
+            self.bot.logger.info(f"User {ctx.author} requested the list of events.")
+            guild_events = self.bot.db.get_paginated_linked_data(
+                "event", self.bot.db.get_data("guild", ctx.guild.id), 1, 10
             )
-            embed.add_field(
-                name="!event list", value="Shows all upcoming events", inline=False
+
+            if not guild_events:
+                self.bot.logger.info(f"No events found for guild {ctx.guild.id}.")
+                await self.send_no_events_embed(ctx)
+                return
+
+            self.bot.logger.info(
+                f"Found {len(guild_events)} events for guild {ctx.guild.id}."
             )
-            embed.add_field(
-                name="!event add",
-                value="Add a new event. Usage: !event add",
-                inline=False,
-            )
-            embed.add_field(
-                name="!event delete",
-                value="Delete an existing event. Usage: !event delete [event_id]",
-                inline=False,
-            )
-            embed.add_field(
-                name="!event clear",
-                value="Clear all events for the guild. Usage: !event clear",
-                inline=False,
-            )
+            embed = self.create_events_embed(guild_events)
             await ctx.send(embed=embed)
 
-    @event.command(name="list", help="Shows all upcoming events")
-    async def list_events(self, ctx):
-        """
-        Handles output for !event list command
-        """
-        self.bot.logger.info(f"User {ctx.author} requested the list of events.")
-        guild_events = self.bot.db.get_paginated_linked_data(
-            "event", self.bot.db.get_data("guild", ctx.guild.id), 1, 10
+    @events.command(name="myevents", help="Get events you are registered for.")
+    async def my_events(self, ctx):
+        """Handles output for the command to get events the user is registered for."""
+        self.bot.logger.info(f"User {ctx.author.id} requested their registered events.")
+
+        user_events = self.bot.db.get_paginated_linked_data(
+            "event", self.bot.db.get_data("user", ctx.author.id), 1, 10
         )
 
-        if not guild_events:
+        if not user_events:
             await self.send_no_events_embed(ctx)
+            self.bot.logger.info(f"User {ctx.author.id} has no registered events.")
             return
 
-        embed = self.create_events_embed(guild_events)
-        await ctx.send(embed=embed)
+        await ctx.author.send(embed=self.create_events_embed(user_events))
+        self.bot.logger.info(f"Sent registered events to user {ctx.author.id}.")
 
-    @event.command(
+    @events.command(
         name="show",
         help="Show details of a specific event. Usage: !event show [event_id]",
     )
@@ -112,7 +105,7 @@ class Event(commands.Cog):
         self.bot.logger.info(f"Created events embed with {len(guild_events)} events.")
         return embed
 
-    @event.command(name="add", help="Add a new event. Usage: !event add")
+    @events.command(name="add", help="Add a new event. Usage: !event add")
     async def add_event(self, ctx):
         """Creates event, adds to guild events list, prints confirmation embed"""
         self.bot.logger.info(f"User {ctx.author} is adding a new event.")
@@ -277,7 +270,7 @@ class Event(commands.Cog):
         embed.add_field(name="Event ID", value=str(event_id), inline=False)
         return embed
 
-    @event.command(
+    @events.command(
         name="delete",
         help="Deletes a specific event given id. Usage: !event delete [id]",
     )
@@ -319,7 +312,9 @@ class Event(commands.Cog):
         )
         return embed
 
-    @event.command(name="clear", help="Clears all upcoming events. Usage: !event clear")
+    @events.command(
+        name="clear", help="Clears all upcoming events. Usage: !event clear"
+    )
     async def clear_events(self, ctx):
         """
         Deletes all future guild events
@@ -341,4 +336,4 @@ class Event(commands.Cog):
 
 # Setup function to load the cog
 async def setup(bot):
-    await bot.add_cog(Event(bot))
+    await bot.add_cog(Events(bot))
