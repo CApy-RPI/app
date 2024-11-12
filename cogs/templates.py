@@ -38,11 +38,11 @@ class Templates(commands.Cog):
 
     #! Template code for a command that cannot be run without the set eboard role
     @commands.command(name="eboard_required", help="EBOARD - Shows the bot's latency.")
-    async def admin_ping(self, ctx):
-        if self.bot.db.get_data("guild", ctx.guild.id).get_value("eboard_role") == None:
+    async def eboard_ping(self, ctx):
+        if self.bot.db.get_data("guild", ctx.guild.id).get_value("eboard_role") is None:
             embed = discord.Embed(
                 title="eboard role not configured!",
-                description=f"Use '!settings set eboard_role' to fix this",
+                description="Use '!settings set eboard_role' to fix this",
                 color=discord.Color.red(),
             )
             await ctx.send(embed=embed)
