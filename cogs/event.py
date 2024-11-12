@@ -401,7 +401,7 @@ class Event(commands.Cog):
         print(user_data)
 
         if not user_data:
-            self.bot.logger.warning(f"User ID {user_id} not found.")
+            self.bot.logger.warning(f"User ID {user_id} not found. add")
             return
 
         # Update the "event" key in the user's JSON data with the event_id
@@ -421,51 +421,70 @@ class Event(commands.Cog):
         print(user_data)
 
         if not user_data:
-            self.bot.logger.warning(f"User ID {user_id} not found.")
+            self.bot.logger.warning(f"User ID {user_id} not found. remove")
             return
 
         print(f"Value to remove: {event_id}")
         user_data.remove_value("event", event_id)
 
         self.bot.db.upsert_data(user_data)
-        self.bot.logger.info(f"User {user_id} updated with event {event_id}.")
+        self.bot.logger.info(f"User {user_id} removed event {event_id}.")
+
+        print(8)
+        print(user_data)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: RawReactionActionEvent):
         """Handle adding a reaction to limit users to only one option."""
-        if payload.emoji.name not in self.allowed_reactions:
-            return  # Ignore other reactions
+        if payload.emoji.name == "✅":
+            #! idk if need channel and message
+            # # Fetch the message and channel to work with reactions
+            # channel = self.bot.get_channel(payload.channel_id)
+            # message = await channel.fetch_message(payload.message_id)
 
-        # Fetch the message and channel to work with reactions
-        channel = self.bot.get_channel(payload.channel_id)
-        message = await channel.fetch_message(payload.message_id)
-        print(message)
+            await self.reaction_attendance_add(payload.user_id, payload.message_id)
         
-        # Check if user has already reacted with the other emoji
-        for reaction in message.reactions:
-            if reaction.emoji in self.allowed_reactions and reaction.emoji != payload.emoji.name:
-                async for user in reaction.users():
-                    if user.id == payload.user_id:
-                        # User reacted with the other option, so remove it
-                        await reaction.remove(user)
+        # if payload.emoji.name not in self.allowed_reactions:
+        #     return  # Ignore other reactions
 
-        # Now the user only has one reaction
+       
+        # print(message)
+
+        # Check if the user has already reacted with the opposite emoji
+        # for reaction in message.reactions:
+        #     if (
+        #         reaction.emoji in self.allowed_reactions
+        #         and reaction.emoji != payload.emoji.name
+        #     ):
+        #         async for user in reaction.users():
+        #             if user.id == payload.user_id:
+        #                 # User reacted with the other option, so remove it
+        #                 await reaction.remove(user)
+        
+        # # Check if user has already reacted with the other emoji
+        # for reaction in message.reactions:
+        #     if reaction.emoji in self.allowed_reactions and reaction.emoji != payload.emoji.name:
+        #         async for user in reaction.users():
+        #             if user.id == payload.user_id:
+        #                 # User reacted with the other option, so remove it
+        #                 await reaction.remove(user)
+
+        
 
     @commands.Cog.listener()
     async def on_raw_reaction_remove(self, payload: RawReactionActionEvent):
         """Prevent unreacting by re-adding the reaction if the user removes it."""
-        if payload.emoji.name not in self.allowed_reactions:
-            return  # Ignore other reactions
+        if payload.emoji.name == "❌":
+            await self.reaction_attendance_remove(payload.user_id, payload.message_id)
 
-        # Fetch the channel and message to re-add the reaction
-        channel = self.bot.get_channel(payload.channel_id)
-        message = await channel.fetch_message(payload.message_id)
-        user = await self.bot.fetch_user(payload.user_id)
-        print(5)
-        print(user)
+        # # Fetch the channel and message to re-add the reaction
+        # channel = self.bot.get_channel(payload.channel_id)
+        # message = await channel.fetch_message(payload.message_id)
+        # user = await self.bot.fetch_user(payload.user_id)
 
-        # Re-add the reaction to simulate a "locked" choice
-        await message.add_reaction(payload.emoji.name)
+        # # Re-add the reaction to simulate a "locked" choice
+        # await message.add_reaction(payload.emoji.name)
+        
 
 # Setup function to load the cog
 async def setup(bot):
