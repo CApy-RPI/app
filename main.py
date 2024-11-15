@@ -66,9 +66,7 @@ class Bot(commands.AutoShardedBot):
     async def on_ready(self):
         # Notify when the bot is ready and print shard info
         self.logger.info(f"Logged in as {self.user.name} - {self.user.id}")
-        self.logger.info(
-            f"Connected to {len(self.guilds)} guilds across {self.shard_count} shards."
-        )
+        self.logger.info(f"Connected to {len(self.guilds)} guilds across {self.shard_count} shards.")
 
     async def on_message(self, message):
         if message.channel.id == self.allowed_channel_id:

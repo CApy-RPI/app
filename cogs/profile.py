@@ -268,10 +268,14 @@ class Profile(commands.Cog):
 
                 oauth_url = f"http://localhost:5000/login?state={user.id}"
                 await user.send(f"To verify your RPI email, please authenticate here: {oauth_url}")
+                with open("resources/temp_emails.txt", "w") as f:
+                    f.write(str(user.id))
                 # Poll for verification result
-                for _ in range(50):  # Wait up to 100 seconds, checking every 2 seconds
+                for _ in range(100):  # Wait up to 100 seconds, checking every 2 seconds
                     await asyncio.sleep(2)
-                    rpi_email = get_verified_email(user.id)
+                    print("Checking for verification result...")
+                    rpi_email = get_verified_email(str(user.id))
+                    print(f"rpi_email now: {rpi_email}")
                     if rpi_email:
                         await user.send(f"Email verified successfully as {rpi_email}.")
                         return rpi_email
@@ -280,6 +284,8 @@ class Profile(commands.Cog):
                 self.flask_process.terminate()                
                 await user.send("Email verification timed out. Please try again.")
                 return None
+
+                #return rpi_email
             else:
                 await user.send(
                     f"{rpi_email} is not a valid email. Please enter a valid email."
@@ -362,7 +368,7 @@ class Profile(commands.Cog):
                     updated_user.set_value("first_name", new_value)
                 elif aspect == "Last Name":
                     await ctx.author.send(
-                        "Your previous response was: " + updated_user.get_value("last_name")
+                        f"Your previous response was: {updated_user.get_value('last_name')}"
                     )
                     self.logger.info("Updating last name")
                     new_value = await self.ask_question(
