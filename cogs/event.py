@@ -372,52 +372,57 @@ class Event(commands.Cog):
     async def reaction_attendance_add(self, user_id, message_id):
         """Adds user to event attendance list."""
 
+        #! put a check somewhere, if user already signed up for an event dont add it again
+
         # Pull the user data
         user_data = self.bot.db.get_data("user", user_id)
+        if not user_data:
+            self.bot.logger.warning(f"reaction_attendance_add: User ID {user_id} not found.")
+            return
+
         print(f"Original User Data for reaction attendance add:")
         print(user_data)
 
-        # # event_data = self.bot.db.search_data("event", "data", message_id)
-        # # event_data = self.bot.db.get_paginated_linked_data("message_id", self.bot.db.get_data("event", ), 1, 10)
-        # # event_data = self.bot.db.get_data("event", event_id_associated_with_message)
-        # # event_data = self.bot.db.get_event_by_message_id("event", message_id)
-        # if event_data:
-        #     event_id = event_data[0].get_value("id")
-        # else:
-        #     self.bot.logger.warning(f"ERROR: Event data for reaction attendance add not found.")
+        all_event_data = self.bot.db.get_paginated_data("event", 1, 10)
         
-        # print(f"Original Event Data for reaction attendance add:")
-        # print(event_data)
-        # print(f"Event id: {event_id}")
-
-        if not user_data:
-            self.bot.logger.warning(f"User ID {user_id} not found. add")
-            return
-
-        #! if not event_data:
-        #!     self.bot.logger.warning(f"Event ID {message_id} not found. remove")
+        # Not efficient search method for large data
+        for row in all_event_data:
+            if row.get_value("message_id") == message_id:
+                event_id = row.get_value("id")
+                break
+        
+        print(f"Event ID: {event_id}")
             
         # Update the "event" key in the user's JSON data with the event_id
-        user_data.append_value("event", message_id)
+        user_data.append_value("event", event_id)
         print(f"Appended User Data after reaction attendance add:")
         print(user_data)
 
         # Save the updated data back to the database
         self.bot.db.upsert_data(user_data)
-        self.bot.logger.info(f"User {user_id} updated with event {message_id}.")
+        self.bot.logger.info(f"User {user_id} updated with event {event_id}.")
 
     # Function to handle removing attendance on reaction
-    async def reaction_attendance_remove(self, user_id, event_id):
+    async def reaction_attendance_remove(self, user_id, message_id):
         """Removes user from event attendance list."""
+        
         user_data = self.bot.db.get_data("user", user_id)
+        if not user_data:
+            self.bot.logger.warning(f"reaction_attendance_remove: User ID {user_id} not found.")
+            return
+
         print(f"Original User Data for reaction attendance remove:")
         print(user_data)
 
-        if not user_data:
-            self.bot.logger.warning(f"User ID {user_id} not found. remove")
-            return
-
-        print(f"Value to remove: {event_id}")
+        all_event_data = self.bot.db.get_paginated_data("event", 1, 10)
+        
+        # Not efficient search method for large data
+        for row in all_event_data:
+            if row.get_value("message_id") == message_id:
+                event_id = row.get_value("id")
+                break
+        
+        print(f"Event ID: {event_id}")
 
         # Check if the event is already removed or blank, do not remove again
         if event_id not in user_data.get_value("event"):
