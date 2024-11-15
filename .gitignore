@@ -2,4 +2,3 @@ __pycache__
 .*
 !.gitignore
 !.vscode
-test.py

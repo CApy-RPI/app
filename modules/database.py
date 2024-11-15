@@ -2,605 +2,386 @@
 
 import os
 import json
-from fastapi import FastAPI
-from contextlib import asynccontextmanager
-from supabase_py_async import create_client
-from supabase_py_async.lib.client_options import ClientOptions
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCursor
+from pymongo import UpdateOne
+from typing import List, Dict, Optional, Any, Union
 
-from modules.timestamp import now
-
-# Import all templates into a dict
-templates = {}
-for filename in os.listdir("resources/data/template"):
-    if filename.endswith(".json"):
-        with open(f"resources/data/template/{filename}", "r") as f:
-            templates[filename[:-5]] = json.load(f)
-
-
-class Data:
-    def __init__(self, _type: str, _data: dict = None, _id: int = None):
-        """
-        Initialize a new Data object with the given type, id, and data.
-
-        Args:
-            _type (str): The type of data to load (e.g. user, guild).
-            _id (int): The id of the data to load.
-            _data (str): The data to load as a JSON string. If None, the default
-                template for the given type will be used.
-
-        Raises:
-            FileNotFoundError: If the default template for the given type does
-                not exist.
-        """
-        file_path = f"resources/data/template/{_type}.json"
-        assert os.path.exists(file_path)
-
-        """ Deprecate - does not update old data with new template data keys
-        if not _data:
-            with open(file_path, "r") as f:
-                self.__data = json.load(f)
-                self.__data["id"] = _id
-                self.__data["created_at"] = now()
-        else:
-            self.__data = json.loads(_data["data"])
-        """
-
-        # Return copied template data if no input data is provided
-        if not _data:
-            assert _id is not None
-            self.__data = templates[_type].copy()
-            self.__data["created_at"] = now()
-            self.__id = _id
-            return
-
-        # Load fields from input data
-        self.__data = json.loads(_data["data"])
-        self.__id = _data["id"]
-
-        # Check for any updates from template
-        for key, value in templates[_type].items():
-            if key not in self.__data:
-                self.__data[key] = value
-
-    def get_value(self, _key: str):
-        """
-        Return the value associated with the given key.
-
-        Args:
-            _key (str): The key to retrieve the value for.
-
-        Returns:
-            object: The value associated with the given key.
-        """
-        return self.__id if _key == "id" else self.__data[_key]
-
-    def set_value(self, _key: str, _value):
-        """
-        Set the value associated with the given key.
-
-        Args:
-            _key (str): The key to set the value for.
-            _value: The value to set.
-
-        """
-        if _key == "id":
-            self.__id = _value
-
-        assert _key in self.__data
-        self.__data[_key] = _value
-
-    def append_value(self, _key: str, _value):
-        """
-        Append a value to the end of the list associated with the given key.
-
-        Args:
-            _key (str): The key to append the value to.
-            _value (object): The value to append.
-        """
-
-        assert _key in self.__data
-        assert isinstance(self.__data[_key], list)
-        self.__data[_key].append(_value)
-
-    def remove_value(self, _key: str, _value):
-        """
-        Remove a value from the list associated with the given key.
-
-        Args:
-            _key (str): The key to remove the value from.
-            _value (object): The value to remove.
-        """
-
-        assert _key in self.__data
-        assert isinstance(self.__data[_key], list)
-        self.__data[_key].remove(_value)
-
-    def pop_value(self, _key: str, _index: int):
-        """
-        Pop a value from the list associated with the given key.
-
-        Args:
-            _key (str): The key to remove the element from.
-            _index (int): The index of the element to pop.
-        """
-
-        assert _key in self.__data
-        assert isinstance(self.__data[_key], list)
-        assert _index < len(self.__data[_key])
-        return self.__data[_key].pop(_index)
-
-    def clear_value(self, _key: str):
-        """
-        Remove all values from the list associated with the given key.
-
-        Args:
-            _key (str): The key to remove all values from.
-        """
-
-        assert _key in self.__data
-        assert isinstance(self.__data[_key], list)
-        self.__data[_key] = []
-
-    def __str__(self):
-        """
-        Return a string representation of this Data object as a JSON string.
-
-        Returns:
-            str: A JSON string representing this Data object.
-        """
-        return json.dumps(self.__data)
-
-    def __ret__(self):
-        """
-        Use str(Data) instead to get the string representation of the Data object
-
-        Raises:
-            NotImplementedError: Always, as this method should not be used.
-        """
-
-        raise NotImplementedError(
-            "Use str(Data) instead to get the string representation of the Data object"
-        )
-
-
-class DatabaseError(Exception):
-    pass
+from modules.timestamp import Timestamp
+from modules.data import Data
 
 
 class Database:
-    _instance = None
-    _initialized = False
-
-    async def __new__(cls, *args, **kwargs):
+    def __init__(self):
         """
-        Custom __new__ method to create a singleton instance of the Database class.
-
-        This method ensures that only one instance of the Database class is created, and
-        that instance is reused whenever the class is instantiated.
-
-        Returns:
-            Database: The singleton instance of the Database class.
-        """
-
-        if cls._instance is None:
-            cls._instance = super(Database, cls).__new__(cls)
-        return cls._instance
-
-    async def __init__(self):
-        """
-        Initializes the Database instance, establishing a connection to Supabase.
-
-        This method ensures that the Database is initialized only once. If initialization
-        is attempted more than once, a DatabaseError is raised. The Supabase client is
-        created using the URL and key from environment variables.
+        Initialize a new Database object with MongoDB.
 
         Raises:
-            DatabaseError: If the Database is initialized more than once.
+            AssertionError: If the MONGODB_URI environment variable is not set.
         """
+        mongodb_uri = os.environ.get("MONGODB_URI")
+        if not mongodb_uri:
+            raise AssertionError("MONGODB_URI environment variable is not set.")
 
-        # Prevent re-initialization after the first time
-        if Database._initialized:
-            raise DatabaseError(
-                "Database has already been initialized once and cannot be initialized again."
-            )
+        self.__client = AsyncIOMotorClient(mongodb_uri)
+        self.__db = self.__client.get_default_database()
 
-        # Set flag to prevent re-initialization
-        Database._initialized = True
-
-        # Connect to Supabase
-        self.__client = await create_client(
-            os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_KEY")
-        )
-
-        if not self.__client:
-            raise DatabaseError("Failed to initialize the database client.")
-
-        client = None
-
-    @asynccontextmanager
-    async def lifespan(app: FastAPI):
-        try:
-            url: str = os.getenv("SUPABASE_URL")
-            key: str = os.getenv("SUPABASE_KEY")
-            client = await create_client(
-                url,
-                key,
-                options=ClientOptions(
-                    postgrest_client_timeout=10, storage_client_timeout=10
-                ),
-            )
-            yield
-        finally:
-            pass
-
-    #! Database data creation
-    async def create_data(self, _table_name: str, _id: int):
+    # * * * * * Internal Helpers * * * * * #
+    @staticmethod
+    def _documents_to_data(
+        _collection_name: str, documents: List[Dict[str, Any]]
+    ) -> List[Data]:
         """
-        Create a new Data object with the given type and id.
+        Convert a list of documents to a list of Data objects.
 
         Args:
-            _table_name (str): The type of data to create (e.g. user, guild).
-            _id (int): The id of the data to create.
+            _collection_name (str): The name of the collection from which the documents were retrieved.
+            documents (List[Dict[str, Any]]): The list of documents to convert.
+
+        Returns:
+            List[Data]: A list of Data objects corresponding to the given documents.
+        """
+        return [Data(_collection_name, doc) for doc in documents]
+
+    @staticmethod
+    def _extract_ids(items: Union[int, List[int], Data, List[Data]]) -> List[int]:
+        """
+        Helper function to extract IDs from mixed input.
+
+        Args:
+            items (Union[int, List[int], Data, List[Data]]): Input data that could contain IDs or Data objects.
+
+        Returns:
+            List[int]: A list of extracted IDs.
+        """
+        if isinstance(items, int):
+            return [items]
+        elif isinstance(items, Data):
+            return [items.get_value("id")]
+        elif isinstance(items, list):
+            return [
+                item if isinstance(item, int) else item.get_value("id")
+                for item in items
+            ]
+        return []
+
+    @staticmethod
+    def _apply_pagination(
+        cursor: AsyncIOMotorCursor,
+        page: Optional[int] = None,
+        limit: Optional[int] = None,
+    ) -> AsyncIOMotorCursor:
+        """
+        Apply pagination to a database cursor.
+
+        Args:
+            cursor (AsyncIOMotorCursor): The cursor to apply pagination to.
+            page (Optional[int]): The page number to retrieve (1-indexed).
+            limit (Optional[int]): The number of items per page.
+
+        Returns:
+            AsyncIOMotorCursor: The cursor with pagination applied.
+        """
+        if page and limit:
+            skip = (page - 1) * limit
+            return cursor.skip(skip).limit(limit)
+
+        return cursor.limit(limit) if limit else cursor
+
+    # * * * * * Create Data * * * * * #
+    async def create_data(self, collection_name: str, id: int):
+        """
+        Create a new Data object with the given collection and id.
+
+        Args:
+            collection_name (str): The type of data to create (e.g., user, guild).
+            id (int): The id of the data to create.
 
         Returns:
             Data: A new Data object with the given type and id.
         """
+        return Data(collection_name, id=id)
 
-        await self.upsert_data(data := Data(_table_name, _id=_id))
-        return data
-
-    #! Database data retrieval
-    async def get_data(self, _table_name: str, _id: int):
+    # * * * * * Get Data * * * * * #
+    async def get_data(
+        self,
+        collection_name: str,
+        id: Optional[int] = None,
+        page: Optional[int] = 1,
+        limit: Optional[int] = None,
+        deleted: Optional[bool] = False,
+    ) -> Union[Optional[Data], List[Data]]:
         """
-        Retrieve a row from the specified table by the given ID.
+        Retrieve a document or a paginated list of documents from the specified collection.
 
         Args:
-            _table_name (str): The name of the table to retrieve the row from.
-            _id (int): The ID of the row to retrieve.
+            collection_name (str): The name of the collection to retrieve the data from.
+            id (int, optional): The ID of a specific document to retrieve. If provided, pagination is ignored.
+            page (int, optional): The page number to retrieve (1-indexed). Default is 1.
+            limit (int, optional): The number of items to retrieve per page. Only used when id is not specified.
+            deleted (bool, optional): Whether to include deleted records in the search. Default is False.
 
         Returns:
-            Data: The retrieved row from the database represented as a Data object.
+            Union[Optional[Data], List[Data]]: A single Data object if `id` is provided; otherwise, a list of Data objects.
         """
-        response = await (
-            self.__client.table(_table_name)
-            .select("*")
-            .eq("id", _id)
-            .eq("is_deleted", False)
-            .execute()
-            .data
-        )
+        # If id is provided, we will fetch a single document
+        if id is not None:
+            criteria = {"id": id, "is_deleted": deleted}
+            document = await self.search_data(collection_name, criteria)
+            return document[0] if document else None
 
-        return (
-            Data(
-                _table_name,
-                response[0],
-            )
-            if response
-            else None
-        )
-
-    async def get_paginated_data(self, _table_name: str, _page: int, _limit: int):
-        """
-        Retrieve a paginated list of Data objects from the specified table.
-
-        Args:
-            _table_name (str): The name of the table to retrieve the data from.
-            _page (int): The page number to retrieve (1-indexed).
-            _limit (int): The number of items to retrieve per page.
-
-        Returns:
-            List[Data]: The retrieved Data objects.
-        """
-        offset = (_page - 1) * _limit
-        return [
-            Data(_table_name, item)
-            for item in await self.__client.table(_table_name)
-            .select("*")
-            .eq("is_deleted", False)
-            .range(offset, offset + _limit - 1)
-            .execute()
-            .data
-        ]
+        # If no id is provided, we will fetch a paginated list of documents
+        criteria = {"is_deleted": deleted}  # Include or exclude deleted records
+        return await self.search_data(collection_name, criteria, page=page, limit=limit)
 
     async def get_linked_data(
-        self, _table_name: str, _data: Data, _warn_override: bool = False
-    ):
+        self,
+        collection_name: str,
+        data: Data,
+        page: Optional[int] = 1,
+        limit: Optional[int] = None,
+        deleted: Optional[bool] = False,
+    ) -> List[Data]:
         """
-        Retrieve all rows from the specified table that are linked to the given Data object.
-
-        The rows are linked if the id of the row is in the list of ids associated with the given Data object.
+        Retrieve documents from the specified collection that are linked to the given Data object, with optional pagination.
 
         Args:
-            _table_name (str): The name of the table to retrieve the rows from.
-            _data (Data): The Data object to retrieve the linked rows for.
+            collection_name (str): The name of the collection to retrieve the documents from.
+            data (Data): The Data object to retrieve the linked documents for.
+            limit (Optional[int]): The maximum number of results to return. If None, returns all matching results.
+            page (Optional[int]): The page number to retrieve, with the default being 1. Used for pagination.
+            deleted (Optional[bool]): Whether to include deleted records in the search. Default is False.
 
         Returns:
-            list[Data]: A list of Data objects representing the linked rows from the database.
+            list[Data]: A list of Data objects representing the linked documents from the database.
         """
 
-        if not _warn_override:
-            raise ValueError(
-                "If using this method for discord embed, use get_linked_paginated_data() instead. Otherwise, pass True to _warn_override."
-            )
+        # Prepare search criteria for linked IDs and non-deleted records
+        linked_ids = data.get_value(collection_name)
+        search_criteria = {"id": {"$in": linked_ids}, "is_deleted": deleted}
 
-        return [
-            Data(_table_name, item)
-            for item in await self.__client.table(_table_name)
-            .select("*")
-            .in_("id", _data.get_value(_table_name))
-            .eq("is_deleted", False)
-            .execute()
-            .data
-        ]
+        # Reuse search_data for pagination and retrieval
+        return await self.search_data(
+            collection_name, search_criteria, page, limit, deleted
+        )
 
-    async def get_paginated_linked_data(
-        self, _table_name: str, _data: Data, _page: int, _limit: int
-    ):
+    # * * * * * Search and Find Data * * * * * #
+    async def search_data(
+        self,
+        collection_name: str,
+        criteria: Dict[str, Any],
+        limit: Optional[int] = None,
+        page: Optional[int] = 1,
+        deleted: Optional[bool] = False,
+    ) -> List[Data]:
         """
-        Retrieve a paginated list of non-deleted rows from the specified table that are linked to the given Data object.
-
-        The rows are linked if the id of the row is in the list of ids associated with the given Data object.
+        Search for Data objects in the specified collection by multiple fields and values, with optional pagination.
 
         Args:
-            _table_name (str): The name of the table to retrieve the rows from.
-            _data (Data): The Data object to retrieve the linked rows for.
-            _page (int): The page number to retrieve (1-indexed).
-            _limit (int): The number of items to retrieve per page.
-
-        Returns:
-            list[Data]: A paginated list of Data objects representing the linked rows from the database.
-        """
-        offset = (_page - 1) * _limit
-        return [
-            Data(_table_name, item)
-            for item in await self.__client.table(_table_name)
-            .select("*")
-            .in_("id", _data.get_value(_table_name))  # Only include linked rows
-            .eq("is_deleted", False)  # Only include non-deleted rows
-            .range(offset, offset + _limit - 1)  # Apply pagination
-            .execute()
-            .data
-        ]
-
-    #! Database data search and find
-    async def search_data(self, _table_name: str, _field: str, _value: any):
-        """
-        Search for Data objects in the specified table by the given field and value.
-
-        Args:
-            _table_name (str): The name of the table to search in.
-            _field (str): The field to search by.
-            _value (any): The value to search for.
+            collection_name (str): The name of the collection to search in.
+            criteria (Dict[str, any]): A dictionary of field-value pairs to search by.
+            limit (Optional[int]): The maximum number of results to return. If None, returns all matching results.
+            page (Optional[int]): The page number to retrieve, with the default being 1. Used for pagination.
+            deleted (Optional[bool]): Flag to include deleted documents (if True) or exclude them (if False). Default is False.
 
         Returns:
             List[Data]: A list of Data objects that match the search criteria.
         """
+        # Include deleted status in criteria
+        criteria["is_deleted"] = deleted
 
-        return [
-            Data(_table_name, item)
-            for item in await (
-                self.__client.table(_table_name)
-                .select("*")
-                .eq(_field, _value)
-                .eq("is_deleted", False)
-                .execute()
-            ).data
-        ]
+        # Build query with criteria, limit, and skip
+        cursor = self.__db[collection_name].find(criteria)
+        cursor = self.apply_pagination(cursor, page, limit)
+        documents = await cursor.to_list(length=None)
+        return self._documents_to_data(collection_name, documents)
 
-    async def exists_data(self, _data: Data):
+    async def data_exists(self, data: Data, deleted: Optional[bool] = False) -> bool:
         """
-        Check if a row exists in the database with the given Data object.
+        Check if a document exists in the database with the given Data object.
 
         Args:
-            _data (Data): The Data object to check if it exists in the database.
+            data (Data): The Data object to check for existence.
+            deleted (Optional[bool]): Flag to include deleted documents (if True) or exclude them (if False). Default is False.
 
         Returns:
-            bool: True if the row exists in the database, False otherwise.
+            bool: True if the document exists in the database, False otherwise.
         """
-        return (
-            await self.get_data(_data.get_value("type"), _data.get_value("id"))
-            is not None
-        )
+        criteria = {"id": data.get_value("id"), "is_deleted": deleted}
+        document = await self.__db[data.get_value("type")].find_one(criteria)
+        return document is not None
 
-    #! Database data update and upsert
-    async def upsert_data(self, _data: Data):
+    async def id_exists(
+        self, collection_name: str, id: int, deleted: Optional[bool] = False
+    ) -> bool:
         """
-        Update a row in the database with the given Data object.
-
-        If the row does not exist, it will be inserted into the database.
+        Check if a document with the given ID exists in the specified collection.
 
         Args:
-            _data (Data): The Data object to upsert in the database.
-        """
-
-        # Update the updated_at field
-        _data.set_value("updated_at", now())
-
-        # Update the data in the database
-        await self.__client.table(_data.get_value("type")).upsert(
-            {"id": _data.get_value("id"), "data": str(_data)}
-        ).execute()
-
-    async def update_data(self, _data: Data):
-        """
-        Update a row in the database with the given Data object.
-
-        If the row does not exist, it will not be inserted into the database.
-
-        Args:
-            _data (Data): The Data object to update in the database.
-
-        Raises:
-            NotImplementedError: This method should be removed in favor of upsert_data.
-        """
-        raise NotImplementedError(
-            "Use upsert_data(Data()) instead of update_data(Data())"
-        )
-
-    async def upsert_bulk_data(self, _table_name: str, _data_list: list[Data]):
-        """
-        Upsert a list of Data objects into the given table.
-
-        If a Data object with the same id already exists in the table, its data will be updated.
-        Otherwise, a new row will be inserted into the table.
-
-        Args:
-            _table_name (str): The name of the table to upsert the data into.
-            _data_list (list[Data]): The list of Data objects to upsert into the table.
-        """
-
-        update_payload = [
-            {"id": data.get_value("id"), "data": str(data)} for data in _data_list
-        ]
-        await self.__client.table(_table_name).upsert(update_payload).execute()
-
-    #! Database data delete and restore
-    async def list_deleted_data(self, _table_name: str):
-        """
-        Retrieve all soft-deleted rows (where is_deleted is True) from the specified table.
-
-        Args:
-            _table_name (str): The name of the table to retrieve the deleted rows from.
+            collection_name (str): The name of the collection to search in.
+            id (int): The ID of the document to check for existence.
+            deleted (Optional[bool]): Flag to include deleted documents (if True) or exclude them (if False). Default is False.
 
         Returns:
-            list[Data]: A list of Data objects representing the soft-deleted rows.
+            bool: True if a document with the given ID exists, False otherwise.
         """
-        response = await (
-            self.__client.table(_table_name)
-            .select("*")
-            .eq("is_deleted", True)  # Filter only the deleted rows
-            .execute()
-            .data
-        )
+        criteria = {"id": id, "is_deleted": deleted}
+        document = await self.__db[collection_name].find_one(criteria)
+        return document is not None
 
-        return [Data(_table_name, item) for item in response] if response else []
-
-    async def soft_delete(self, _table_name: str, _id: int):
+    # * * * * * Update and Upsert Data * * * * * #
+    async def upsert_data(self, data: Data):
         """
-        Soft delete a record by marking it as deleted and adding a timestamp.
+        Update or insert a document in the database with the given Data object.
 
         Args:
-            _table_name (str): The name of the table to soft delete from.
-            _id (int): The ID of the record to be soft deleted.
+            data (Data): The Data object to upsert in the database.
         """
-        await self.__client.table(_table_name).update(
-            {"is_deleted": True, "deleted_at": now()}
-        ).eq("id", _id).execute()
+        data.set_value("updated_at", Timestamp.now())
+        await self.__db[data.get_value("type")].update_one(
+            {"id": data.get_value("id")},
+            {"$set": data.to_dict()},
+            upsert=True,
+        )
+
+    async def upsert_bulk_data(self, collection_name: str, data_list: list[Data]):
+        """
+        Upsert a list of Data objects into the given collection.
+
+        Args:
+            collection_name (str): The name of the collection to upsert the data into.
+            data_list (list[Data]): The list of Data objects to upsert into the collection.
+        """
+        updates = [
+            {
+                "updateOne": {
+                    "filter": {"id": data.get_value("id")},
+                    "update": {"$set": data.to_dict()},
+                    "upsert": True,
+                }
+            }
+            for data in data_list
+        ]
+        await self.__db[collection_name].bulk_write(updates)
+
+    # * * * * * Delete and Restore Data * * * * * #
+    async def soft_delete(
+        self, collection_name: str, items: Union[int, List[int], Data, List[Data]]
+    ):
+        """
+        Soft delete one or more documents by marking them as deleted.
+
+        Args:
+            collection_name (str): The name of the collection.
+            items (Union[int, List[int], Data, List[Data]]): Single ID, list of IDs, Data object, or list of Data objects.
+        """
+        ids = self._extract_ids(items)
+        await self.__db[collection_name].update_many(
+            {"id": {"$in": ids}},
+            {"$set": {"is_deleted": True, "deleted_at": Timestamp.now()}},
+        )
+
+    async def restore(
+        self, collection_name: str, items: Union[int, List[int], Data, List[Data]]
+    ):
+        """
+        Restore one or more documents by marking them as not deleted.
+
+        Args:
+            collection_name (str): The name of the collection.
+            items (Union[int, List[int], Data, List[Data]]): Single ID, list of IDs, Data object, or list of Data objects.
+        """
+        ids = self._extract_ids(items)
+        await self.__db[collection_name].update_many(
+            {"id": {"$in": ids}}, {"$set": {"is_deleted": False, "deleted_at": None}}
+        )
 
     async def hard_delete(
-        self, _table_name: str, _id: int, _warn_override: bool = False
+        self, collection_name: str, items: Union[int, List[int], Data, List[Data]]
     ):
         """
-        Permanently delete a record from the database.
+        Permanently delete one or more documents.
 
         Args:
-            _table_name (str): The table name to delete from.
-            _id (int): The ID of the record to be hard deleted.
+            collection_name (str): The name of the collection.
+            items (Union[int, List[int], Data, List[Data]]): Single ID, list of IDs, Data object, or list of Data objects.
         """
-        if not _warn_override:
-            raise ValueError(
-                "Unless you are absolutely sure you want to delete FOREVER, use soft_delete() instead. Otherwise, pass True to _warn_override."
-            )
+        ids = self._extract_ids(items)
+        await self.__db[collection_name].delete_many({"id": {"$in": ids}})
 
-        await self.__client.table(_table_name).delete().eq("id", _id).execute()
-
-    async def restore(self, _table_name: str, _id: int):
-        """
-        Restore a soft deleted record by marking the 'is_deleted' flag as False.
-
-        Args:
-            _table_name (str): The table name to restore from.
-            _id (int): The ID of the record to restore.
-        """
-        await self.__client.table(_table_name).update(
-            {"is_deleted": False, "deleted_at": None}
-        ).eq("id", _id).execute()
-
-    async def bulk_soft_delete_after_time(self, _table_name: str, _cutoff_time: str):
-        """
-        Soft delete all records in a table that are older than a specified time.
-
-        Args:
-            _table_name (str): The name of the table to soft delete from.
-            _cutoff_time (str): The cutoff time to soft delete records older than this time.
-        """
-        await self.__client.table(_table_name).update(
-            {"is_deleted": True, "deleted_at": now()}
-        ).lt("created_at", _cutoff_time).is_("is_deleted", False).execute()
-
-    async def bulk_soft_delete(self, _table_name: str, _ids: list[int]):
-        """
-        Soft delete multiple records by marking them as 'deleted'.
-
-        Args:
-            _table_name (str): The table name to soft delete from.
-            ids (list[int]): The IDs of the records to be soft deleted.
-        """
-        await self.__client.table(_table_name).update(
-            {"is_deleted": True, "deleted_at": now()}
-        ).in_("id", _ids).execute()
-
-    async def bulk_hard_delete(
-        self, _table_name: str, _ids: list[int], _warn_override: bool = False
+    async def hard_delete_by_cutoff(
+        self, collection_name: str, cutoff_date: Timestamp, older: bool = True
     ):
         """
-        Permanently delete multiple records from the database.
+        Permanently delete soft-deleted documents based on a cutoff date.
 
         Args:
-            _table_name (str): The table name to delete from.
-            ids (list[int]): The IDs of the records to be hard deleted.
+            collection_name (str): The name of the collection.
+            cutoff_date (Timestamp): The cutoff date as a Timestamp object.
+            older (bool): If True, delete documents older than the cutoff date; otherwise, delete newer documents.
         """
-        if not _warn_override:
-            raise ValueError(
-                "Unless you are absolutely sure you want to delete FOREVER, use soft_delete() instead. Otherwise, pass True to _warn_override."
-            )
-        await self.__client.table(_table_name).delete().in_("id", _ids).execute()
+        # Determine comparison operator based on whether we're deleting older or newer documents
+        operator = "$lt" if older else "$gt"
 
-    async def bulk_restore(self, _table_name: str, _ids: list[int]):
-        """
-        Restore multiple soft deleted records by marking the 'is_deleted' flag as False.
+        # Convert Timestamp to UTC datetime for database comparison
+        utc_cutoff_date = cutoff_date.to_utc()
 
-        Args:
-            _table_name (str): The table name to restore from.
-            ids (list[int]): The IDs of the records to restore.
-        """
-        await self.__client.table(_table_name).update(
-            {"is_deleted": False, "deleted_at": None}
-        ).in_("id", _ids).execute()
+        await self.__db[collection_name].delete_many(
+            {"is_deleted": True, "deleted_at": {operator: utc_cutoff_date}}
+        )
 
-    async def cleanup_soft_deleted(self, _table_name: str, _cutoff_date: str):
+    # * * * * * Backup and Restore Tablets * * * * * #
+    async def backup_table(self, collection_name: str, output_file: str):
         """
-        Permanently delete records that were soft deleted before a certain date.
+        Back up the data in the specified collection to a JSON file.
 
         Args:
-            _table_name (str): The table name to clean up.
-            cutoff_date (str): The cutoff date to delete records older than this date.
+            collection_name (str): The name of the collection to back up.
+            output_file (str): The file to write the data to.
         """
-        await self.__client.table(_table_name).delete().lt(
-            "deleted_at", _cutoff_date
-        ).eq("is_deleted", True).execute()
+        # Retrieve all documents in the collection
+        cursor = self.db[collection_name].find()
+        documents = await cursor.to_list(length=None)
 
-    #! Database table backup and restore
-    async def backup_table(self, _table_name: str, _output_file: str):
-        """
-        Back up the data in the given table to a file.
+        # Write documents to a file in JSON format
+        with open(output_file, "w") as f:
+            json.dump(documents, f, default=str, indent=4)
 
-        Args:
-            _table_name (str): The name of the table to backup.
-            _output_file (str): The file to write the data to.
+    async def restore_table(
+        self, collection_name: str, input_file: str, drop_existing: bool = False
+    ):
         """
-        response = await self.__client.table(_table_name).select("*").execute()
-        with open(_output_file, "w") as f:
-            json.dump(response.data, f, indent=4)
-
-    async def restore_table(self, _table_name: str, _input_file: str):
-        """
-        Restore the data in the given table from a file.
+        Restore the data in the specified collection from a JSON file.
 
         Args:
-            _table_name (str): The name of the table to restore data into.
-            _input_file (str): The file to read the data from.
+            collection_name (str): The name of the collection to restore data into.
+            input_file (str): The file to read the data from.
+            drop_existing (bool): If True, the collection will be dropped before restoring (full drop restore).
+                                If False, documents will be upserted (upsert restore).
         """
-        with open(_input_file, "r") as f:
+        # Load data from the JSON file
+        with open(input_file, "r") as f:
             data = json.load(f)
-        await self.__client.table(_table_name).upsert(data).execute()
+
+        if drop_existing:
+            # Drop the existing collection for a full restore
+            await self.db[collection_name].drop()
+            await self.db[collection_name].insert_many(data)
+            return
+
+        # Perform an upsert restore without dropping the collection
+        bulk_operations = []
+        for document in data:
+            # Ensure each document has an '_id' field for upsert purposes
+            if "_id" not in document:
+                raise ValueError(
+                    "Each document must have an '_id' field for upsert restore."
+                )
+
+            # Prepare update or insert operation (upsert)
+            bulk_operations.append(
+                UpdateOne({"_id": document["_id"]}, {"$set": document}, upsert=True)
+            )
+
+        # Execute bulk upsert operation
+        if bulk_operations:
+            await self.db[collection_name].bulk_write(bulk_operations)

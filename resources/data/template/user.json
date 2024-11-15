@@ -1,5 +1,6 @@
 {
-    "type": "user",
+    "_id": null,
+    "_collection": "user",
     "first_name": "",
     "last_name": "",
     "school_email": "",
