@@ -410,7 +410,7 @@ class Event(commands.Cog):
     async def reaction_attendance_remove(self, user_id, event_id):
         """Removes user from event attendance list."""
         user_data = self.bot.db.get_data("user", user_id)
-        print(f"Original User Data after reaction attendance remove:")
+        print(f"Original User Data for reaction attendance remove:")
         print(user_data)
 
         if not user_data:
@@ -434,6 +434,22 @@ class Event(commands.Cog):
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
         """Handle adding a reaction to limit users to only one option."""
+
+        # Ensure this is not the bot's reaction
+        if payload.user_id == self.bot.user.id:
+            return
+
+        # Fetch the message where the reaction was added
+        channel = self.bot.get_channel(payload.channel_id)
+        message = await channel.fetch_message(payload.message_id)
+
+        # Get the user's previous reactions on the message
+        for reaction in message.reactions:
+            if reaction.emoji != payload.emoji.name and payload.user_id in [user.id async for user in reaction.users()]:
+                # Remove the user's previous reaction if it's different from the new one
+                await reaction.remove(self.bot.get_user(payload.user_id))
+
+
         if payload.emoji.name == "✅":
             await self.reaction_attendance_add(payload.user_id, payload.message_id)
         elif payload.emoji.name == "❌":
