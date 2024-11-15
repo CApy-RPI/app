@@ -3,7 +3,8 @@ import pytz
 from datetime import datetime, timedelta
 from functools import wraps
 
-STRFTIME_FORMAT = "%m/%d/%y %I:%M %p %Z %z"
+DATETIME_FORMAT = "%m/%d/%y %I:%M %p"
+DATETIME_TZ_FORMAT = "%m/%d/%y %I:%M %p %Z"
 
 
 class Timestamp:
@@ -44,15 +45,6 @@ class Timestamp:
         """Validates if the given datetime string is in the correct format."""
         try:
             datetime.strptime(datetime_str, "%m/%d/%y %I:%M %p")
-            return True
-        except ValueError:
-            return False
-
-    @staticmethod
-    def is_valid_datetime_and_timezone(datetime_str: str) -> bool:
-        """Validates if the given datetime string is in the correct format."""
-        try:
-            datetime.strptime(datetime_str, "%m/%d/%y %I:%M %p %Z")
             return True
         except ValueError:
             return False
@@ -101,28 +93,6 @@ class Timestamp:
 
         return wrapper
 
-    @staticmethod
-    def validate_datetime_and_timezone(func):
-        """
-        Decorator to validate the datetime format of a given string before executing the decorated function.
-
-        Args:
-            func (function): The function to be decorated.
-
-        Raises:
-            ValueError: If the datetime string does not match the expected format MM/DD/YY HH:MM AM/PM.
-        """
-
-        @wraps(func)
-        def wrapper(self, datetime_str: str, *args, **kwargs):
-            if not self.is_valid_datetime_and_timezone(datetime_str):
-                raise ValueError(
-                    f"Invalid datetime format: {datetime_str}. Expected format: MM/DD/YY HH:MM AM/PM Timezone"
-                )
-            return func(self, datetime_str, *args, **kwargs)
-
-        return wrapper
-
     # * * * * * Constructors * * * * * #
     @classmethod
     @validate_timezone
@@ -140,7 +110,7 @@ class Timestamp:
 
         # Get the current time in the specified timezone
         current_time = datetime.now(pytz.timezone(timezone))
-        return cls(current_time.strftime(STRFTIME_FORMAT))
+        return cls(current_time.strftime(DATETIME_FORMAT))
 
     @classmethod
     def from_epoch(cls, epoch: float) -> "Timestamp":
@@ -155,7 +125,7 @@ class Timestamp:
             Timestamp: A Timestamp object initialized with the given epoch time.
         """
         utc_datetime = datetime.fromtimestamp(epoch, tz=pytz.utc)
-        return cls(utc_datetime.strftime(STRFTIME_FORMAT))
+        return cls(utc_datetime.strftime(DATETIME_TZ_FORMAT))
 
     @classmethod
     def from_iso8601(cls, iso8601: str) -> "Timestamp":
@@ -170,7 +140,7 @@ class Timestamp:
             Timestamp: A Timestamp object initialized with the given ISO 8601 datetime string.
         """
         utc_datetime = datetime.fromisoformat(iso8601)
-        return cls(utc_datetime.strftime(STRFTIME_FORMAT))
+        return cls(utc_datetime.strftime(DATETIME_TZ_FORMAT))
 
     # * * * * * String Representation * * * * * #
     def to_epoch(self) -> float:
@@ -183,9 +153,9 @@ class Timestamp:
 
     def to_utc(self) -> str:
         """
-        Returns the stored UTC datetime in ISO 8601 format.
+        Returns the stored datetime in UTC format.
         """
-        return self.__utc_datetime.strftime(STRFTIME_FORMAT)
+        return self.__utc_datetime.strftime(DATETIME_TZ_FORMAT)
 
     def to_timezone(self, timezone: str = None) -> str:
         """
@@ -203,7 +173,7 @@ class Timestamp:
 
         target_tz = pytz.timezone(timezone)
         localized_datetime = self.__utc_datetime.astimezone(target_tz)
-        return localized_datetime.strftime(STRFTIME_FORMAT)
+        return localized_datetime.strftime(DATETIME_TZ_FORMAT)
 
     def to_default_timezone(self) -> str:
         """
@@ -254,14 +224,13 @@ class Timestamp:
             datetime_str (str): The new datetime in the format MM/DD/YY HH:MM {AM/PM}.
         """
         # Parse the datetime string to get a naive datetime object
-        naive_datetime = datetime.strptime(datetime_str, STRFTIME_FORMAT)
+        naive_datetime = datetime.strptime(datetime_str, DATETIME_FORMAT)
 
         # Localize the naive datetime to UTC
         self.__utc_datetime = naive_datetime.astimezone(pytz.utc)
 
         return self.__utc_datetime
 
-    @validate_datetime_and_timezone
     def set_datetime_and_timezone(self, datetime_str: str):
         """
         Sets the datetime and timezone, converting to UTC for internal storage.
@@ -275,26 +244,13 @@ class Timestamp:
         # Check for timezone in the datetime string
         if tz_match := re.search(timezone_pattern, datetime_str, re.IGNORECASE):
             self.__timezone = tz_match.group(0).upper()
-            datetime_str = re.sub(
-                timezone_pattern, "", datetime_str
-            ).strip()  # Remove timezone from string
+            new_datetime = datetime.strptime(datetime_str, DATETIME_TZ_FORMAT)
         else:
             # Default to system timezone if none is specified
             self.__timezone = self.get_default_timezone()
+            new_datetime = datetime.strptime(datetime_str, DATETIME_FORMAT)
 
-        # Parse the datetime string to get a naive datetime object
-        naive_datetime = self.set_datetime(datetime_str)
-
-        # Localize the naive datetime to the specified timezone
-        local_tz = pytz.timezone(
-            "America/New_York"
-            if self.__timezone == self.get_default_timezone()
-            else self.__timezone
-        )
-        localized_datetime = local_tz.localize(naive_datetime)
-
-        # Convert to UTC and store
-        self.__utc_datetime = localized_datetime.astimezone(pytz.utc)
+        self.__utc_datetime = new_datetime.astimezone(pytz.utc)
 
     # * * * * * Time Arithmetic * * * * * #
     def add_days(self, days: int):
