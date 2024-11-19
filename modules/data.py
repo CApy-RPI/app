@@ -27,11 +27,10 @@ class Data:
         Raises:
             ValueError: If the collection does not exist in templates.
         """
-        return self.from_template(_collection)
 
     # * * * * * Constructors * * * * * #
     @classmethod
-    def from_template(cls, _collection: str, _id: Optional[int] = None):
+    def from_template(cls, _collection: str, _id: int):
         """
         Create a new Data object using a template for the specified collection.
 
@@ -42,7 +41,6 @@ class Data:
         Returns:
             Data: A new Data instance initialized with the template data.
         """
-        cls.assert_template(_collection, "from_template")
         it = cls(_collection)
         it.__data = templates[_collection].copy()
         it.__data["created_at"] = Timestamp.now()
