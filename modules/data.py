@@ -17,15 +17,12 @@ for file in os.listdir("resources/data/template"):
 
 class Data:
     # * * * * * Initializer * * * * * #
-    def __init__(self, _collection: str):
+    def __init__(self):
         """
         Initializes a new Data object with the specified collection.
 
         Args:
             _collection (str): The name of the data collection.
-
-        Raises:
-            ValueError: If the collection does not exist in templates.
         """
 
     # * * * * * Constructors * * * * * #
