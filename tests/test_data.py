@@ -25,7 +25,6 @@ def mock_user_template():
         "created_at": "",
     }
 
-
 @pytest.fixture
 def user_data(mock_user_template):
     """
@@ -132,3 +131,44 @@ def test_user_timestamps(mock_now, user_data):
     assert user_data.get_value("created_at") == "2024-11-19T12:00:00"
     user_data.set_value("updated_at", "2024-11-20T12:00:00")
     assert user_data.get_value("updated_at") == "2024-11-20T12:00:00"
+
+# Test Initialization with unknown collection raises error
+def test_unknown_collection_raises_error():
+    with pytest.raises(ValueError): Data("foo")
+
+# Test Initialization with no collection raises error
+def test_no_collection_raises_error():
+    with pytest.raises(ValueError): Data("")
+    
+def test_user_initialization_from_dict():
+    user_ben_dict = {
+    "_id": 1010,
+    "_collection": "user",
+    "first_name": "Ben",
+    "last_name": "Bitdiddle",
+    "school_email": "diddleb@rpi.edu",
+    "student_id": 662012345,
+    "major": ["CS", "CSE"],
+    "graduation_year": 2028,
+    "guild": [9, 10],
+    "event": [21],
+    "updated_at": "9-12-21",
+    "created_at": "9-10-21"
+    }
+
+    user_ben = Data.from_dict(user_ben_dict)
+
+    assert user_ben.get_value("id") == 1010
+    assert user_ben.get_value("type") == "user"
+    with pytest.raises(ValueError): user_ben.get_value("foo")
+    with pytest.raises(ValueError): user_ben.get_value("")
+    assert user_ben.get_value("first_name") == "Ben"
+    assert user_ben.get_value("last_name") == "Bitdiddle"
+    assert user_ben.get_value("school_email") == "diddleb@rpi.edu"
+    assert user_ben.get_value("student_id") == 662012345
+    assert user_ben.get_value("major") == ["CS", "CSE"]
+    assert user_ben.get_value("graduation_year") == 2028
+    assert user_ben.get_value("guild") == [9,10]
+    assert user_ben.get_value("event") == [21]
+    assert user_ben.get_value("updated_at") == "9-12-21"
+    assert user_ben.get_value("created_at") == "9-10-21"
