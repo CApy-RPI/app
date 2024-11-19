@@ -2,7 +2,7 @@ import os
 import json
 from typing import Optional, Union, List
 from functools import wraps
-from modules.timestamp import now
+from modules.timestamp import Timestamp
 
 # Load templates dynamically from files in "resources/data/template"
 templates = {}
@@ -27,7 +27,6 @@ class Data:
         Raises:
             ValueError: If the collection does not exist in templates.
         """
-        self.assert_template(_collection, "__init__")
 
     # * * * * * Constructors * * * * * #
     @classmethod
@@ -44,7 +43,7 @@ class Data:
         """
         it = cls(_collection)
         it.__data = templates[_collection].copy()
-        it.__data["created_at"] = now()
+        it.__data["created_at"] = Timestamp.now()
         it.__data["_id"] = _id
         return it
 
@@ -60,7 +59,7 @@ class Data:
             Data: A new Data instance initialized with the provided dictionary data.
         """
         it = cls(_data["_collection"])
-        it.__data = _data
+        it.__data = _data.copy()
         return it
 
     # * * * * * Validators * * * * * #
@@ -107,7 +106,6 @@ class Data:
 
         return wrapper
 
-    @validate_key_exists
     def validate_key_points_to_value(_method):
         """
         Decorator to ensure the specified key points to a single, non-list, non-dict value.
@@ -121,6 +119,10 @@ class Data:
 
         @wraps(_method)
         def wrapper(self, _key, *args, **kwargs):
+            if _key not in self.__data:
+                raise KeyError(
+                    f"Error in {_method.__name__}: Key '{_key}' not found in data."
+                )
             value = self.__data.get(_key)
             if isinstance(value, (list, dict)):
                 raise TypeError(
@@ -131,7 +133,6 @@ class Data:
 
         return wrapper
 
-    @validate_key_exists
     def validate_key_points_to_list(_method):
         """
         Decorator to ensure the specified key points to a list.
@@ -145,6 +146,10 @@ class Data:
 
         @wraps(_method)
         def wrapper(self, _key, *args, **kwargs):
+            if _key not in self.__data:
+                raise KeyError(
+                    f"Error in {_method.__name__}: Key '{_key}' not found in data."
+                )
             value = self.__data.get(_key)
             if not isinstance(value, list):
                 raise TypeError(
@@ -155,7 +160,6 @@ class Data:
 
         return wrapper
 
-    @validate_key_points_to_list
     def validate_index_points_to_value_in_valid_list(_method):
         """
         Decorator to ensure the specified index points to a value in a valid list.
@@ -170,9 +174,14 @@ class Data:
         @wraps(_method)
         def wrapper(self, _key, _index, *args, **kwargs):
             value = self.__data.get(_key)
+            if not isinstance(value, list):
+                raise TypeError(
+                    f"Error in {_method.__name__}: Key '{_key}' must point to a list, "
+                    f"but currently points to type '{type(value).__name__}'."
+                )
             if _index < 0 or _index >= len(value):
                 raise IndexError(
-                    f"Error in {_method.__name__}: Index '{_index}' out of range for key '{_key}'. List size: {len(value)}"
+                    f"Error in {_method.__name__}: Index '{_index}' out of range for key '{_key}'. List size: {len(value)}."
                 )
             return _method(self, _key, _index, *args, **kwargs)
 
