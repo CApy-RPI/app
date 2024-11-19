@@ -1,11 +1,6 @@
 import discord
-import random
-import string
 import logging
 from discord.ext import commands
-from modules.database import Database
-from modules.email import Email
-
 
 class Profile(commands.Cog):
     def __init__(self, bot: commands.Bot):
