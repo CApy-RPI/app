@@ -2,7 +2,7 @@ import os
 import json
 from typing import Optional, Union, List
 from functools import wraps
-from modules.timestamp import now
+from modules.timestamp import Timestamp
 
 # Load templates dynamically from files in "resources/data/template"
 templates = {}
@@ -44,7 +44,7 @@ class Data:
         """
         it = cls(_collection)
         it.__data = templates[_collection].copy()
-        it.__data["created_at"] = now()
+        it.__data["created_at"] = Timestamp.now()
         it.__data["_id"] = _id
         return it
 
