@@ -308,8 +308,6 @@ class Event(commands.Cog):
         embed.add_field(name="Attendees", value=attendee_list, inline=False)
 
         await ctx.send(embed=embed)
-    
-    #! MAKE A FUNCTION TO SHOW SPECIFIC EVENTS THAT A SINGLE USER IS SIGNED UP TO ATTEND
 
     @commands.command(name="announce", help="Announces an event in the announcements channel. Usage: !announce [event id]")
     async def announce(self, ctx, event_id: int):
@@ -345,7 +343,7 @@ class Event(commands.Cog):
         # Create the embed for announcements
         embed = discord.Embed(
             title="Event Announcement",
-            description=f"**Event:** {event.get_value('name')}\n**Date/Time:** {event.get_value('datetime')}\n**Location:** {event.get_value('location')}",
+            description=f"**Event:** {event.get_value('name')}\n**Date/Time:** {event.get_value('datetime')}\n**Location:** {event.get_value('location')}\n\nReact with ✅ to attend or ❌ to decline.",
             color=discord.Color.purple(),
         )
 
@@ -354,7 +352,8 @@ class Event(commands.Cog):
             message = await announcement_channel.send(embed=embed)
             await message.add_reaction("✅")  # Add reaction for attendance
             await message.add_reaction("❌")  # Add reaction for decline
-            await announcement_channel.send(f"React with ✅ to attend or ❌ to decline")
+            await message.add_reaction("❔")  # Add reaction for maybe
+            # await announcement_channel.send(f"React with ✅ to attend or ❌ to decline")
             event.set_value("message_id", message.id)
             print(f"Set message id to event in announce:")
             print(event)
@@ -372,7 +371,7 @@ class Event(commands.Cog):
     async def reaction_attendance_add(self, user_id, message_id):
         """Adds user to event attendance list."""
 
-        #! put a check somewhere, if user already signed up for an event dont add it again
+        #! fix the reactions, remove "yes" when a user changes their mind from no
 
         # Pull the user data
         user_data = self.bot.db.get_data("user", user_id)
@@ -380,8 +379,8 @@ class Event(commands.Cog):
             self.bot.logger.warning(f"reaction_attendance_add: User ID {user_id} not found.")
             return
 
-        print(f"Original User Data for reaction attendance add:")
-        print(user_data)
+        # print(f"Original User Data for reaction attendance add:")
+        # print(user_data)
 
         all_event_data = self.bot.db.get_paginated_data("event", 1, 10)
         
@@ -391,12 +390,37 @@ class Event(commands.Cog):
                 event_id = row.get_value("id")
                 break
         
-        print(f"Event ID: {event_id}")
+        # print(f"Event ID: {event_id}")
+        event_data = self.bot.db.get_data("event", event_id)
+
+        if event_id in user_data.get_value("event"):
+            self.bot.logger.warning(f"User ID {user_id} has already signed up for event ID {event_id}. No need to re-add.")
+            return
+
+        # Access the "reactions" field
+        reactions = event_data.get_value("reactions")
+        if reactions and isinstance(reactions, dict):
+            # Increment the "yes" count
+            #reactions["yes"] = reactions.get("yes", 0) + 1
+            reactions["yes"] += 1
+            print(f"Updated Reactions: {reactions}")
+
+            # Update the event data with the modified reactions
+            event_data.set_value("reactions", reactions)
+        else:
+            self.bot.logger.warning(f"Invalid reactions field in event ID {event_id}.")
+            return
+
+        # Update the "user" key in the event's JSON data with user_id
+        event_data.append_value("user", user_id)
+        # Save the updated event data back to the database
+        self.bot.db.upsert_data(event_data)
+
             
         # Update the "event" key in the user's JSON data with the event_id
         user_data.append_value("event", event_id)
-        print(f"Appended User Data after reaction attendance add:")
-        print(user_data)
+        # print(f"Appended User Data after reaction attendance add:")
+        # print(user_data)
 
         # Save the updated data back to the database
         self.bot.db.upsert_data(user_data)
@@ -411,8 +435,8 @@ class Event(commands.Cog):
             self.bot.logger.warning(f"reaction_attendance_remove: User ID {user_id} not found.")
             return
 
-        print(f"Original User Data for reaction attendance remove:")
-        print(user_data)
+        # print(f"Original User Data for reaction attendance remove:")
+        # print(user_data)
 
         all_event_data = self.bot.db.get_paginated_data("event", 1, 10)
         
@@ -423,18 +447,43 @@ class Event(commands.Cog):
                 break
         
         print(f"Event ID: {event_id}")
+        event_data = self.bot.db.get_data("event", event_id)
+
+        # Access the "reactions" field
+        reactions = event_data.get_value("reactions")
+        if reactions and isinstance(reactions, dict):
+            # Increment the "no" count
+            reactions["no"] += 1
+            print(f"Updated Reactions: {reactions}")
+
+            # Update the event data with the modified reactions
+            event_data.set_value("reactions", reactions)
+        else:
+            self.bot.logger.warning(f"Invalid reactions field in event ID {event_id}.")
+            return
 
         # Check if the event is already removed or blank, do not remove again
         if event_id not in user_data.get_value("event"):
             self.bot.logger.info(f"User {user_id} is not attending event {event_id}, no need to remove.")
         else:
             user_data.remove_value("event", event_id)
-            self.bot.logger.info(f"User {user_id} removed event {event_id}.")
+            self.bot.logger.info(f"Event {event_id} has been removed from user {user_id}'s events.")
 
+        if user_id not in event_data.get_value("user"):
+            self.bot.logger.info(f"User {user_id} is not attending event {event_id}, no need to remove.")
+        else:
+            event_data.remove_value("user", user_id)
+            self.bot.logger.info(f"User {user_id} has been removed from event {event_id}'s users.")
+            if reactions and isinstance(reactions, dict):
+                reactions["yes"] -= 1
+                print(f"Updated Reactions: {reactions}")
+       
+        # Save the updated data back to the database
         self.bot.db.upsert_data(user_data)
+        self.bot.db.upsert_data(event_data)
 
-        print(f"Removed User Data after reaction attendance remove:")
-        print(user_data)
+        # print(f"Removed User Data after reaction attendance remove:")
+        # print(user_data)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
@@ -454,7 +503,6 @@ class Event(commands.Cog):
                 # Remove the user's previous reaction if it's different from the new one
                 await reaction.remove(self.bot.get_user(payload.user_id))
 
-
         if payload.emoji.name == "✅":
             await self.reaction_attendance_add(payload.user_id, payload.message_id)
         elif payload.emoji.name == "❌":
@@ -464,5 +512,3 @@ class Event(commands.Cog):
 # Setup function to load the cog
 async def setup(bot):
     await bot.add_cog(Event(bot))
-
-#! create a test statement to make code that sees if two options are selected and deselects the previous one
