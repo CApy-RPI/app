@@ -27,7 +27,7 @@ class Data:
 
     # * * * * * Constructors * * * * * #
     @classmethod
-    def from_template(cls, _collection: str, _id: int):
+    def from_template(cls, _collection: str, _id: Optional[int] = None):
         """
         Create a new Data object using a template for the specified collection.
 
@@ -38,7 +38,7 @@ class Data:
         Returns:
             Data: A new Data instance initialized with the template data.
         """
-        it = cls(_collection)
+        it = cls()
         it.__data = templates[_collection].copy()
         it.__data["created_at"] = Timestamp.now()
         it.__data["_id"] = _id
@@ -55,7 +55,7 @@ class Data:
         Returns:
             Data: A new Data instance initialized with the provided dictionary data.
         """
-        it = cls(_data["_collection"])
+        it = cls()
         it.__data = _data.copy()
         return it
 
@@ -116,6 +116,11 @@ class Data:
 
         @wraps(_method)
         def wrapper(self, _key, *args, **kwargs):
+            if _key == "id":
+                _key = "_id"
+            elif _key == "type":
+                _key = "_collection"
+
             if _key not in self.__data:
                 raise KeyError(
                     f"Error in {_method.__name__}: Key '{_key}' not found in data."

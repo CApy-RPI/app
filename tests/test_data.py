@@ -38,7 +38,7 @@ def test_user_template_initialization(mock_user_template):
     """
     Ensure the user template is initialized without errors.
     """
-    data = Data("user")
+    data = Data.from_template("user", 0)
     assert data is not None
 
 
@@ -123,8 +123,8 @@ def test_user_invalid_field_access(user_data):
 
 
 # Test Timestamps
-@patch("modules.timestamp.now", return_value="2024-11-19T12:00:00")
-def test_user_timestamps(mock_now, user_data):
+@patch("modules.timestamp.Timestamp", return_value="2024-11-19T12:00:00")
+def test_user_timestamps(user_data):
     """
     Ensure timestamps are properly set.
     """
@@ -134,11 +134,11 @@ def test_user_timestamps(mock_now, user_data):
 
 # Test Initialization with unknown collection raises error
 def test_unknown_collection_raises_error():
-    with pytest.raises(ValueError): Data("foo")
+    with pytest.raises(KeyError): Data.from_template("foo")
 
 # Test Initialization with no collection raises error
 def test_no_collection_raises_error():
-    with pytest.raises(ValueError): Data("")
+    with pytest.raises(KeyError): Data.from_template("")
     
 def test_user_initialization_from_dict():
     user_ben_dict = {
@@ -160,8 +160,8 @@ def test_user_initialization_from_dict():
 
     assert user_ben.get_value("id") == 1010
     assert user_ben.get_value("type") == "user"
-    with pytest.raises(ValueError): user_ben.get_value("foo")
-    with pytest.raises(ValueError): user_ben.get_value("")
+    with pytest.raises(KeyError): user_ben.get_value("foo")
+    with pytest.raises(KeyError): user_ben.get_value("")
     assert user_ben.get_value("first_name") == "Ben"
     assert user_ben.get_value("last_name") == "Bitdiddle"
     assert user_ben.get_value("school_email") == "diddleb@rpi.edu"
