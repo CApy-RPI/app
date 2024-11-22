@@ -37,6 +37,17 @@ def refresh_access_token(refresh_token):
 
     return new_access_token, new_refresh_token
 def create_app():
+    """
+    Creates and configures a Flask application for Microsoft OAuth 2.0 authentication.
+
+    This function sets up a Flask application with routes for handling login,
+    authorization callback, dashboard display, and token refresh. It registers
+    the Microsoft OAuth client and configures the necessary endpoints and 
+    credentials for the authentication process.
+
+    Returns:
+        app (Flask): The configured Flask application instance.
+    """
     app = Flask(__name__)
     app.config['WTF_CSRF_ENABLED'] = False  # Disable CSRF for testing
     app.secret_key = secrets.token_urlsafe(32)
@@ -65,6 +76,24 @@ def create_app():
     @app.route('/login')
     def login():
         # Retrieve and clear the error message
+        """
+        Initiates the Microsoft OAuth flow for authentication.
+
+        This endpoint is responsible for retrieving and clearing any error messages
+        that have been stored in the session, and then redirecting the user to the
+        Microsoft OAuth authorization endpoint.
+
+        If an error message is present in the session, the user is shown an HTML page
+        with the error message and a link to retry the login process.
+
+        Otherwise, the user is redirected to the authorization endpoint, which will
+        prompt the user to authenticate and then redirect them back to the
+        `auth_callback` endpoint.
+
+        Returns:
+            A redirect response to the authorization endpoint, or an HTML page with an
+            error message if an error is present in the session.
+        """
         error_message = session.pop('error_message', None)
 
         # Initiate the Microsoft OAuth flow
@@ -87,8 +116,16 @@ def create_app():
 
     @app.route('/auth/microsoft/callback')
     def auth_callback():
-        print("HEOFJOIEF")
+        """
+        Handles the Microsoft OAuth flow callback.
 
+        This route is called when the user authorizes the app. The app then exchanges the authorization code for an access token and refresh token.
+        The access token is used to fetch the user's email address and check if it is an RPI email address.
+        If it is, the user is added to the list of verified emails and the user is redirected to the dashboard.
+        If not, an error message is displayed and the user is redirected to the login page.
+
+        :return: A redirect to the login page with an error message if the email address is not an RPI email address, or a redirect to the dashboard if it is.
+        """
         auth_code = request.args.get("code")
     
         Atoken_url = 'https://login.microsoftonline.com/common/oauth2/v2.0/token'
