@@ -371,3 +371,25 @@ class Data:
 
         """
         self.__data[key].clear()
+
+    # * * * * * Dictionary Operations * * * * * #
+    def to_dict(self) -> dict:
+        """
+        Convert the Data object into a dictionary.
+
+        Returns:
+        dict: The Data object as a dictionary.
+        """
+        ret = self.__data.copy()
+        ret["updated_at"] = self.__data["updated_at"].to_est()
+        ret["created_at"] = self.__data["created_at"].to_est()
+        return ret
+
+    def __str__(self) -> str:
+        """
+        Convert the Data object into a string representation.
+
+        Returns:
+        str: A string representation of the Data object.
+        """
+        return json.dumps(self.__data)

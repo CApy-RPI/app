@@ -117,6 +117,10 @@ class Timestamp:
     def __str__(self):
         return self.to_est()
 
+    # Example of using the custom to_dict method
+    def __repr__(self):
+        return self.to_est()
+
     # * * * * * Getter and Setter Methods * * * * * #
     def get_datetime(self) -> str:
         """Gets the stored datetime in America/New_York."""
