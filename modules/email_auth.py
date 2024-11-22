@@ -10,20 +10,6 @@ import requests
 load_dotenv()
 verified_emails = {}
 
-# def fetch_token_manually(auth_code):
-#     token_url = 'https://login.microsoftonline.com/common/oauth2/v2.0/token'
-#     client_id = os.environ.get('CLIENT_ID')
-#     client_secret = os.environ.get('CLIENT_SECRET')
-    
-#     oauth_session = OAuth2Session(client_id, redirect_uri=url_for('auth_callback', _external=True))
-    
-#     token = oauth_session.fetch_token(
-#         token_url,
-#         client_secret=client_secret,
-#         code=auth_code
-#     )
-#     return token
-
 def refresh_access_token(refresh_token):
     """
     Refresh the access token using the provided refresh token.
@@ -78,11 +64,26 @@ def create_app():
     print("OAuth configuration:", oauth._clients['microsoft'].__dict__)
     @app.route('/login')
     def login():
+        # Retrieve and clear the error message
+        error_message = session.pop('error_message', None)
+
+        # Initiate the Microsoft OAuth flow
         redirect_uri = url_for('auth_callback', _external=True)
-        print(f"Redirect URI: {redirect_uri}") 
-        print(f"Client ID: {os.environ.get('CLIENT_ID')}") 
-        print(f"Client Secret: {os.environ.get('CLIENT_SECRET')}")
+        
+        # Add error handling display
+        if error_message:
+            print(f"Error: {error_message}")  # Debugging purposes only
+            return f"""
+                <html>
+                    <body>
+                        <p style="color:red;">{error_message}</p>
+                        <p>Click <a href="{url_for('login')}">here</a> to continue with the correct email.</p>
+                    </body>
+                </html>
+            """
+
         return oauth.microsoft.authorize_redirect(redirect_uri)
+
 
     @app.route('/auth/microsoft/callback')
     def auth_callback():
@@ -110,25 +111,8 @@ def create_app():
         token = response.json()
         print("Raw Token Response:", token)  # Log the raw token response for inspection
 
-
         if 'error' in token:
             return f"Error fetching token: {token['error_description']}"
-        # try: 
-        #     token = oauth.microsoft.authorize_access_token(withhold_token=True) #causing the error rn: ISS 
-        #     print(f"TOKEN:  {token}")
-        #     if not token:
-        #         print("Failed to get access token :((((((((")
-        #         return 'Error: ' + str(token)
-        # except Exception as e:
-        #     print(f"STUPID ASS ERROR FROM TOKEN: {e}")
-        #     import traceback
-        #     traceback.print_exc()
-        #     return 'Error: ' + str(e)
-
-        # user_info = oauth.microsoft.get('me').json()
-        # print(f"User22 Info: {user_info}")
-        # user_info = oauth.microsoft.get('me').json()
-        # print(f"User Info: {user_info}")
 
         # Extract tokens
         access_token = token.get("access_token")
@@ -154,13 +138,15 @@ def create_app():
                 f.truncate()
             store_verified_email(discord_user_id, user_info['mail'])
             session['user'] = user_info
-            return f"Email verified successfully. You can close this window. {discord_user_id}"
+            return f"Email verified successfully. You can close this window."
             # return redirect(url_for('dashboard'))
         else:
-            return 'Invalid email domain; Check if you have signed in correct email!', 403
+            session['error_message'] = 'Invalid email domain; please check if you have signed in with the correct email!'
+            return redirect(url_for('login'))   
 
     @app.route('/dashboard')
     def dashboard():
+
         if 'user' in session:
             return f"Welcome, {session['user']['givenName']}!"
         return redirect(url_for('login'))
@@ -194,5 +180,7 @@ def store_verified_email(discord_user_id, email):
 def get_verified_email(discord_user_id):
     return verified_emails.get(discord_user_id)
 
-
+def remove_verified_email(discord_user_id):
+    if discord_user_id in verified_emails:
+        del verified_emails[discord_user_id]
 

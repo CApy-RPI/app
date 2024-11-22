@@ -4,7 +4,7 @@ import string
 import logging
 from discord.ext import commands
 from modules.database import Database
-from modules.email_auth import store_verified_email, get_verified_email
+from modules.email_auth import remove_verified_email, get_verified_email
 import subprocess
 
 class Profile(commands.Cog):
@@ -158,7 +158,7 @@ class Profile(commands.Cog):
             await user.send(f"Your response: {msg.content}")
 
             return msg.content  # Return the response
-        except discord.TimeoutError:
+        except asyncio.TimeoutError:
             await user.send(
                 "You took too long to respond! Please start the profile setup again."
             )
@@ -248,48 +248,50 @@ class Profile(commands.Cog):
         """
         while True:
 
-            rpi_email = await self.ask_question(
-                user,
-                "What is your RPI email? Please type out your full email address! (Example: smithj23@rpi.edu)",
-            )
-            if rpi_email is None:
-                self.logger.info("User did not respond in time or did not input an email") 
-                return None
+            # rpi_email = await self.ask_question(
+            #     user,
+            #     "What is your RPI email? Please type out your full email address! (Example: smithj23@rpi.edu)",
+            # )
+            # if rpi_email is None:
+            #     self.logger.info("User did not respond in time or did not input an email") 
+            #     return None
 
-            if rpi_email[-8:] == "@rpi.edu":
-                self.flask_process = None
-                if not self.flask_process or not self.flask_process.poll():
-                    self.logger.info("Starting Flask server for OAuth verification...")
-                    self.flask_process = subprocess.Popen(
-                        ["python", "email_auth.py"],  # Use your Flask file name here
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE
-                    )
+            #if rpi_email[-8:] == "@rpi.edu":
+            self.flask_process = None
+            if not self.flask_process or not self.flask_process.poll():
+                self.logger.info("Starting Flask server for OAuth verification...")
+                self.flask_process = subprocess.Popen(
+                    ["python", "email_auth.py"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE
+                )
 
-                oauth_url = f"http://localhost:5000/login?state={user.id}"
-                await user.send(f"To verify your RPI email, please authenticate here: {oauth_url}")
-                with open("resources/temp_emails.txt", "w") as f:
-                    f.write(str(user.id))
-                # Poll for verification result
-                for _ in range(100):  # Wait up to 100 seconds, checking every 2 seconds
-                    await asyncio.sleep(2)
-                    print("Checking for verification result...")
-                    rpi_email = get_verified_email(str(user.id))
-                    print(f"rpi_email now: {rpi_email}")
-                    if rpi_email:
-                        await user.send(f"Email verified successfully as {rpi_email}.")
-                        return rpi_email
-                    
-                self.logger.info("Flask server timed out. Terminating process...")
-                self.flask_process.terminate()                
-                await user.send("Email verification timed out. Please try again.")
-                return None
+            oauth_url = f"http://localhost:5000/login?state={user.id}"
+            await user.send(f"Click the link and login with your RPI email! \nLink: {oauth_url}")
+            with open("resources/temp_emails.txt", "w") as f:
+                f.write(str(user.id))
+            # Poll for verification result
+            for _ in range(100):  # Wait up to 100 seconds, checking every 2 seconds
+                await asyncio.sleep(2)
+                print("Checking for verification result...")
+                rpi_email = get_verified_email(str(user.id))
+                print(f"rpi_email now: {rpi_email}")
+                if rpi_email:
+                    self.logger.info("Email verified successfully.")
+                    remove_verified_email(str(user.id))
+                    await user.send(f"Email verified successfully as {rpi_email}.")
+                    return rpi_email
+                
+            self.logger.info("Flask server timed out. Terminating process...")
+            self.flask_process.terminate()                
+            await user.send("Email verification timed out. Please try again.")
+            return None
 
                 #return rpi_email
-            else:
-                await user.send(
-                    f"{rpi_email} is not a valid email. Please enter a valid email."
-                )
+            # else:
+            #     await user.send(
+            #         f"{rpi_email} is not a valid email. Please enter a valid email."
+            #     )
 
     async def ask_rin(self, user):
         """
@@ -422,7 +424,7 @@ class Profile(commands.Cog):
         :type user: discord.User
         :return: The user's response.
         :rtype: str
-        :raises discord.TimeoutError: The user took too long to respond.
+        :raises asyncio.TimeoutError: The user took too long to respond.
         """
         self.logger.info("Trying to: ask user to select an aspect of their profile to update.")
         try:
@@ -437,7 +439,7 @@ class Profile(commands.Cog):
             )
 
             return msg.content
-        except discord.TimeoutError:
+        except asyncio.TimeoutError:
             self.logger.error("You took too long to respond! Please start the profile setup again.")
             await user.send(
                 "You took too long to respond! Please start the profile setup again."
