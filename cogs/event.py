@@ -12,7 +12,7 @@ class Event(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.bot.logger.info("Event cog initialized.")
-        self.allowed_reactions = ["✅", "❌"]
+        self.allowed_reactions = ["✅", "❌", "❔"]
 
     @commands.group(name="event", help="Access/Modify Event data.")
     async def event(self, ctx):
@@ -343,7 +343,7 @@ class Event(commands.Cog):
         # Create the embed for announcements
         embed = discord.Embed(
             title="Event Announcement",
-            description=f"**Event:** {event.get_value('name')}\n**Date/Time:** {event.get_value('datetime')}\n**Location:** {event.get_value('location')}\n\nReact with ✅ to attend or ❌ to decline.",
+            description=f"**Event:** {event.get_value('name')}\n**Date/Time:** {event.get_value('datetime')}\n**Location:** {event.get_value('location')}\n\nReact with ✅ to attend, ❌ to decline, or ❔ for maybe.",
             color=discord.Color.purple(),
         )
 
@@ -353,10 +353,7 @@ class Event(commands.Cog):
             await message.add_reaction("✅")  # Add reaction for attendance
             await message.add_reaction("❌")  # Add reaction for decline
             await message.add_reaction("❔")  # Add reaction for maybe
-            # await announcement_channel.send(f"React with ✅ to attend or ❌ to decline")
             event.set_value("message_id", message.id)
-            print(f"Set message id to event in announce:")
-            print(event)
 
             # Update event data
             self.bot.db.upsert_data(event) 
@@ -379,9 +376,6 @@ class Event(commands.Cog):
             self.bot.logger.warning(f"reaction_attendance_add: User ID {user_id} not found.")
             return
 
-        # print(f"Original User Data for reaction attendance add:")
-        # print(user_data)
-
         all_event_data = self.bot.db.get_paginated_data("event", 1, 10)
         
         # Not efficient search method for large data
@@ -390,7 +384,6 @@ class Event(commands.Cog):
                 event_id = row.get_value("id")
                 break
         
-        # print(f"Event ID: {event_id}")
         event_data = self.bot.db.get_data("event", event_id)
 
         if event_id in user_data.get_value("event"):
@@ -401,7 +394,6 @@ class Event(commands.Cog):
         reactions = event_data.get_value("reactions")
         if reactions and isinstance(reactions, dict):
             # Increment the "yes" count
-            #reactions["yes"] = reactions.get("yes", 0) + 1
             reactions["yes"] += 1
             print(f"Updated Reactions: {reactions}")
 
@@ -413,14 +405,12 @@ class Event(commands.Cog):
 
         # Update the "user" key in the event's JSON data with user_id
         event_data.append_value("user", user_id)
+
         # Save the updated event data back to the database
         self.bot.db.upsert_data(event_data)
-
             
         # Update the "event" key in the user's JSON data with the event_id
         user_data.append_value("event", event_id)
-        # print(f"Appended User Data after reaction attendance add:")
-        # print(user_data)
 
         # Save the updated data back to the database
         self.bot.db.upsert_data(user_data)
@@ -428,15 +418,14 @@ class Event(commands.Cog):
 
     # Function to handle removing attendance on reaction
     async def reaction_attendance_remove(self, user_id, message_id):
-        """Removes user from event attendance list."""
+        """
+        Removes user from event attendance list.
+        """
         
         user_data = self.bot.db.get_data("user", user_id)
         if not user_data:
             self.bot.logger.warning(f"reaction_attendance_remove: User ID {user_id} not found.")
             return
-
-        # print(f"Original User Data for reaction attendance remove:")
-        # print(user_data)
 
         all_event_data = self.bot.db.get_paginated_data("event", 1, 10)
         
@@ -446,7 +435,6 @@ class Event(commands.Cog):
                 event_id = row.get_value("id")
                 break
         
-        print(f"Event ID: {event_id}")
         event_data = self.bot.db.get_data("event", event_id)
 
         # Access the "reactions" field
@@ -454,7 +442,6 @@ class Event(commands.Cog):
         if reactions and isinstance(reactions, dict):
             # Increment the "no" count
             reactions["no"] += 1
-            print(f"Updated Reactions: {reactions}")
 
             # Update the event data with the modified reactions
             event_data.set_value("reactions", reactions)
@@ -482,12 +469,50 @@ class Event(commands.Cog):
         self.bot.db.upsert_data(user_data)
         self.bot.db.upsert_data(event_data)
 
-        # print(f"Removed User Data after reaction attendance remove:")
-        # print(user_data)
+    # Function to handle adding maybe to reaction
+    async def reaction_attendance_maybe(self, user_id, message_id):
+        """
+        Increment the "maybe" count in the event's JSON data.
+        """
+
+        user_data = self.bot.db.get_data("user", user_id)
+        if not user_data:
+            self.bot.logger.warning(f"reaction_attendance_maybe: User ID {user_id} not found.")
+            return
+
+        all_event_data = self.bot.db.get_paginated_data("event", 1, 10)
+        
+        # Not efficient search method for large data
+        for row in all_event_data:
+            if row.get_value("message_id") == message_id:
+                event_id = row.get_value("id")
+                break
+        
+        event_data = self.bot.db.get_data("event", event_id)
+
+        # Access the "reactions" field
+        reactions = event_data.get_value("reactions")
+        if reactions and isinstance(reactions, dict):
+            # Increment the "maybe" count
+            reactions["maybe"] += 1
+            self.logger.bot.info(f"Updated Reactions: {reactions}")
+
+            # Update the event data with the modified reactions
+            event_data.set_value("reactions", reactions)
+        else:
+            self.bot.logger.warning(f"Invalid reactions field in event ID {event_id}.")
+            return
+
+        self.bot.db.upsert_data(user_data)
+        self.bot.db.upsert_data(event_data)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
-        """Handle adding a reaction to limit users to only one option."""
+        """
+        Listens for reaction to event announcements and calls the appropriate function.
+
+        Handle adding a reaction to limit users to only one option.
+        """
 
         # Ensure this is not the bot's reaction
         if payload.user_id == self.bot.user.id:
@@ -507,6 +532,8 @@ class Event(commands.Cog):
             await self.reaction_attendance_add(payload.user_id, payload.message_id)
         elif payload.emoji.name == "❌":
             await self.reaction_attendance_remove(payload.user_id, payload.message_id)
+        elif payload.emoji.name == "❔":
+            await self.reaction_attendance_maybe(payload.user_id, payload.message_id)
         
 
 # Setup function to load the cog
