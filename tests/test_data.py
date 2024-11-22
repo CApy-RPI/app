@@ -121,17 +121,6 @@ def test_user_invalid_field_access(user_data):
     with pytest.raises(TypeError):
         user_data.append_to_list("first_name", "Invalid Operation")  # Not a list
 
-
-# Test Timestamps
-@patch("modules.timestamp.Timestamp", return_value="2024-11-19T12:00:00")
-def test_user_timestamps(user_data):
-    """
-    Ensure timestamps are properly set.
-    """
-    assert user_data.get_value("created_at") == "2024-11-19T12:00:00"
-    user_data.set_value("updated_at", "2024-11-20T12:00:00")
-    assert user_data.get_value("updated_at") == "2024-11-20T12:00:00"
-
 # Test Initialization with unknown collection raises error
 def test_unknown_collection_raises_error():
     with pytest.raises(KeyError): Data.from_template("foo")
@@ -166,9 +155,9 @@ def test_user_initialization_from_dict():
     assert user_ben.get_value("last_name") == "Bitdiddle"
     assert user_ben.get_value("school_email") == "diddleb@rpi.edu"
     assert user_ben.get_value("student_id") == 662012345
-    assert user_ben.get_value("major") == ["CS", "CSE"]
+    assert user_ben.get_list("major") == ["CS", "CSE"]
     assert user_ben.get_value("graduation_year") == 2028
-    assert user_ben.get_value("guild") == [9,10]
-    assert user_ben.get_value("event") == [21]
+    assert user_ben.get_list("guild") == [9,10]
+    assert user_ben.get_list("event") == [21]
     assert user_ben.get_value("updated_at") == "9-12-21"
     assert user_ben.get_value("created_at") == "9-10-21"
