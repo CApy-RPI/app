@@ -11,19 +11,25 @@ from modules.data import Data
 
 
 class Database:
-    def __init__(self):
+    def __init__(self, client: Optional[AsyncIOMotorClient] = None):
         """
         Initialize a new Database object with MongoDB.
 
+        Args:
+            client (Optional[AsyncIOMotorClient], optional): MongoDB client to connect to. Defaults to None (creates a new client).
+
         Raises:
-            AssertionError: If the MONGODB_URI environment variable is not set.
+            AssertionError: If MONGODB_URI environment variable is not set.
         """
         mongodb_uri = os.environ.get("MONGODB_URI")
         if not mongodb_uri:
             raise AssertionError("MONGODB_URI environment variable is not set.")
-
-        self.__client = AsyncIOMotorClient(mongodb_uri)
-        self.__db = self.__client.get_default_database()
+        mongodb_name = os.environ.get("MONGODB_NAME")
+        if not mongodb_name:
+            raise AssertionError("MONGODB_NAME environment variable is not set.")
+        
+        self.__client = client or AsyncIOMotorClient(mongodb_uri)
+        self.__db = self.__client.get_database(mongodb_name)
 
     # * * * * * Internal Helpers * * * * * #
     @staticmethod
@@ -99,7 +105,7 @@ class Database:
         Returns:
             Data: A new Data object with the given type and id.
         """
-        return Data(collection_name, id=id)
+        return Data.from_template(collection_name, id=id)
 
     # * * * * * Get Data * * * * * #
     async def get_data(
@@ -191,7 +197,7 @@ class Database:
 
         # Build query with criteria, limit, and skip
         cursor = self.__db[collection_name].find(criteria)
-        cursor = self.apply_pagination(cursor, page, limit)
+        cursor = self._apply_pagination(cursor, page, limit)
         documents = await cursor.to_list(length=None)
         return self._documents_to_data(collection_name, documents)
 

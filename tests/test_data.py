@@ -11,12 +11,12 @@ def mock_user_template():
     Mock the user template to simulate a real environment.
     """
     templates["user"] = {
-        "_id": None,
+        "id": None,
         "_collection": "user",
         "first_name": "",
         "last_name": "",
         "school_email": "",
-        "student_id": "",
+        "studentid": "",
         "major": [],
         "graduation_year": None,
         "guild": [],
@@ -25,12 +25,13 @@ def mock_user_template():
         "created_at": "",
     }
 
+
 @pytest.fixture
 def user_data(mock_user_template):
     """
     Create a Data object using the user template.
     """
-    return Data.from_template("user", _id=1)
+    return Data.from_template("user", 1)
 
 
 # Test Initialization
@@ -121,43 +122,50 @@ def test_user_invalid_field_access(user_data):
     with pytest.raises(TypeError):
         user_data.append_to_list("first_name", "Invalid Operation")  # Not a list
 
+
 # Test Initialization with unknown collection raises error
 def test_unknown_collection_raises_error():
-    with pytest.raises(KeyError): Data.from_template("foo")
+    with pytest.raises(KeyError):
+        Data.from_template("foo")
+
 
 # Test Initialization with no collection raises error
 def test_no_collection_raises_error():
-    with pytest.raises(KeyError): Data.from_template("")
-    
+    with pytest.raises(KeyError):
+        Data.from_template("")
+
+
 def test_user_initialization_from_dict():
     user_ben_dict = {
-    "_id": 1010,
-    "_collection": "user",
-    "first_name": "Ben",
-    "last_name": "Bitdiddle",
-    "school_email": "diddleb@rpi.edu",
-    "student_id": 662012345,
-    "major": ["CS", "CSE"],
-    "graduation_year": 2028,
-    "guild": [9, 10],
-    "event": [21],
-    "updated_at": "9-12-21",
-    "created_at": "9-10-21"
+        "_id": 1010,
+        "_collection": "user",
+        "first_name": "Ben",
+        "last_name": "Bitdiddle",
+        "school_email": "diddleb@rpi.edu",
+        "studentid": 662012345,
+        "major": ["CS", "CSE"],
+        "graduation_year": 2028,
+        "guild": [9, 10],
+        "event": [21],
+        "updated_at": "9-12-21",
+        "created_at": "9-10-21",
     }
 
     user_ben = Data.from_dict(user_ben_dict)
 
     assert user_ben.get_value("id") == 1010
     assert user_ben.get_value("type") == "user"
-    with pytest.raises(KeyError): user_ben.get_value("foo")
-    with pytest.raises(KeyError): user_ben.get_value("")
+    with pytest.raises(KeyError):
+        user_ben.get_value("foo")
+    with pytest.raises(KeyError):
+        user_ben.get_value("")
     assert user_ben.get_value("first_name") == "Ben"
     assert user_ben.get_value("last_name") == "Bitdiddle"
     assert user_ben.get_value("school_email") == "diddleb@rpi.edu"
-    assert user_ben.get_value("student_id") == 662012345
+    assert user_ben.get_value("studentid") == 662012345
     assert user_ben.get_list("major") == ["CS", "CSE"]
     assert user_ben.get_value("graduation_year") == 2028
-    assert user_ben.get_list("guild") == [9,10]
+    assert user_ben.get_list("guild") == [9, 10]
     assert user_ben.get_list("event") == [21]
     assert user_ben.get_value("updated_at") == "9-12-21"
     assert user_ben.get_value("created_at") == "9-10-21"

@@ -4,3 +4,6 @@ logging==0.4.9.6
 python-dotenv==1.0.1
 motor==3.6.0
 pytz
+mongomock_motor
+pytest
+pytest-asyncio
