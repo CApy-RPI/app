@@ -168,7 +168,7 @@ def create_app():
         user_info = user_info_response.json()
         print("User Info:", user_info)
         
-        if user_info['mail'].endswith('@rpi.edu'):
+        if user_info['mail'][-8:] == ('@rpi.edu'):
             with open("resources/temp_emails.txt", "r+") as f:
                 discord_user_id = f.read()
                 f.seek(0) 

@@ -1,6 +1,5 @@
 import asyncio
 import discord
-import string
 import logging
 from discord.ext import commands
 from modules.database import Database
@@ -323,6 +322,7 @@ class Profile(commands.Cog):
         self.logger.info("Updating user profile...")
         updated_user = self.bot.db.get_data("user", ctx.author.id)
         if not updated_user:
+            self.logger.info(f"User {ctx.author.id} does not have a profile yet! Please use the !profile command to create one.")
             await ctx.send(
                 "You do not have a profile yet! Please use the !profile command to create one."
             )
