@@ -1,3 +1,6 @@
+# cogs/help.py - displays all available commands
+#              - displays help for a specific command
+
 import discord
 from discord.ext import commands
 
@@ -15,8 +18,9 @@ class HelpCommand(commands.MinimalHelpCommand):
         )
 
         for cog, commands in mapping.items():
-            command_list = [command.name for command in commands if not command.hidden]
-            if command_list:
+            if command_list := [
+                command.name for command in commands if not command.hidden
+            ]:
                 cog_name = cog.qualified_name if cog else "No Category"
                 embed.add_field(
                     name=cog_name, value=", ".join(command_list), inline=False

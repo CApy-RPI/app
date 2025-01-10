@@ -1,8 +1,10 @@
-import discord
-from discord.ext import commands
 import os
+import discord
 import logging
-import asyncio
+from discord.ext import commands
+from dotenv import load_dotenv
+from modules.email import Email
+from modules.database import Database
 
 
 # Create the bot class, inheriting from commands.AutoShardedBot
@@ -11,6 +13,43 @@ class Bot(commands.AutoShardedBot):
         super().__init__(*args, **kwargs)
         self.logger = logging.getLogger("discord.main")
         self.logger.setLevel(logging.INFO)
+        self.email = Email()
+        self.db = Database()
+
+    # Event that runs when the bot joins a new server
+    async def on_guild_join(self, guild: discord.Guild):
+        # If already in guild, do nothing
+        if self.db.get_data("guild", guild.id):
+            self.logger.info(
+                f"Joined Guild: {guild.name} (ID: {guild.id}) already exists in database"
+            )
+            return
+
+        # Else, add guild to data base
+        new_guild_data = self.db.create_data("guild", guild.id)
+        self.db.upsert_data(new_guild_data)
+        self.logger.info(
+            f"Inserted New Guild: {guild.name} (ID: {guild.id}) into database"
+        )
+
+    # Event that runs when a member joins a guild
+    async def on_member_join(self, member: discord.Member):
+        # get current guild data
+        guild_data = self.db.get_data("guild", member.guild.id)
+
+        # if guild does not exist, create it
+        if not guild_data:
+            self.logger.warn(
+                f"Guild {member.guild.name} does not exist in database for user {member.id} on join"
+            )
+            guild_data = self.db.create_data("guild", member.guild.id)
+
+        # add member id to server users list
+        guild_data.append_value("users", member.id)
+        self.db.upsert_data(guild_data)
+        self.logger.info(
+            f"User {member.id} joined guild {member.guild.name} (ID: {member.guild.id})"
+        )
 
     async def setup_hook(self):
         # Import all cogs from the 'cogs/' directory
@@ -32,7 +71,10 @@ class Bot(commands.AutoShardedBot):
         )
 
     async def on_message(self, message):
-        await self.process_commands(message)
+        if self.allowed_channel_id is None:
+            await self.process_commands(message)
+        elif message.channel.id == self.allowed_channel_id:
+            await self.process_commands(message)
 
     async def on_command(self, ctx):
         self.logger.info(f"Command executed: {ctx.command} by {ctx.author}")
@@ -43,12 +85,23 @@ class Bot(commands.AutoShardedBot):
 
 
 def main():
+    load_dotenv()
     bot = Bot(command_prefix="!", intents=discord.Intents.all())
 
-    with open(".creds.txt", "r") as file:
-        token = file.read().strip()
+    """
+    DEVS: If testing bot in certain channel to avoid conflicts with other bot instances set CHANNEL_LOCK = "True" in .env
+    otherwise can remove CHANNEL_LCOK or set CHANNEL_LOCK = "False"
+    """
+    # Set the allowed channel ID and channel lock from environment
+    allowed_channel_id = os.getenv("ALLOWED_CHANNEL_ID")
+    channel_lock_str = os.getenv("CHANNEL_LOCK") or "False"
+    channel_lock = channel_lock_str == "TRUE"
+    if allowed_channel_id and channel_lock:
+        bot.allowed_channel_id = int(allowed_channel_id)
+    else:
+        bot.allowed_channel_id = None
 
-    bot.run(token, reconnect=True)
+    bot.run(os.getenv("DEV_BOT_TOKEN"), reconnect=True)
 
 
 if __name__ == "__main__":

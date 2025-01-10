@@ -1,0 +1,10 @@
+{
+    "type": "guild",
+    "user": [],
+    "event": [],
+    "announcements_channel": null,
+    "moderator_channel": null,
+    "eboard_role": null,
+    "updated_at": "",
+    "created_at": ""
+}
