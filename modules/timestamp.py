@@ -65,7 +65,6 @@ class Timestamp:
         Args:
             epoch (float): The Unix timestamp representing the number of seconds since
                             January 1, 1970, 00:00:00 UTC.
-
         Returns:
             Timestamp: A Timestamp object initialized with the given epoch time, adjusted to America/New_York.
         """

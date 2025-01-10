@@ -1,11 +1,6 @@
 import discord
-import random
-import string
 import logging
 from discord.ext import commands
-from modules.database import Database
-from modules.email import Email
-
 
 class Profile(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -249,19 +244,6 @@ class Profile(commands.Cog):
                 return None
 
             if rpi_email[-8:] == "@rpi.edu":
-                # characters = string.ascii_letters + string.digits
-                # encypted = "".join(random.choice(characters) for _ in range(8))
-                # self.bot.email.send_email(rpi_email, "RPI Email Verification", encypted)
-
-                # await user.send("An email has been sent to your RPI email. Please verify your email")
-
-                # msg = await self.bot.wait_for(
-                #     "message", check=lambda message: message.author == user and isinstance(message.channel, discord.DMChannel), timeout=60
-                # )
-                # if(msg.content == encypted):
-                #     return rpi_email
-                # else:
-                #     await user.send(f"{msg} is not a valid code. Please enter a valid code.")
                 return rpi_email
             else:
                 await user.send(
@@ -385,7 +367,7 @@ class Profile(commands.Cog):
                     f"Invalid choice. Please enter a number between 1 and {len(aspects)}"
                 )
         await self.show_user_profile(ctx, updated_user)
-        self.bot.db.update_data(updated_user)
+        self.bot.db.upsert_data(updated_user)
 
     async def user_choice(self, user):
         """
@@ -454,7 +436,6 @@ class Profile(commands.Cog):
         Shows your profile.
         """
         user = self.bot.db.get_data("user", ctx.author.id)
-        print(user.get_value("id"))
         if user == -1 or not user:
             await ctx.send(
                 "You don't have a profile. Please use the !profile command to create one."
