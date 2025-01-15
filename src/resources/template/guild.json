@@ -1,5 +1,6 @@
 {
-    "type": "guild",
+    "_id": null,
+    "_collection": "guild",
     "user": [],
     "event": [],
     "announcements_channel": null,

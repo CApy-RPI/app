@@ -9,12 +9,12 @@ from modules.database import Database
 
 # Create the bot class, inheriting from commands.AutoShardedBot
 class Bot(commands.AutoShardedBot):
-    def __init__(self, *args, **kwargs):
+    async def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.logger = logging.getLogger("discord.main")
         self.logger.setLevel(logging.INFO)
         self.email = Email()
-        self.db = Database()
+        self.db = await Database()
 
     # Event that runs when the bot joins a new server
     async def on_guild_join(self, guild: discord.Guild):

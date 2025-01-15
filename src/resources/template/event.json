@@ -1,5 +1,6 @@
 {
-    "type": "event",
+    "_id": null,
+    "_collection": "event",
     "guild_id": null,
     "name": "",
     "datetime": "",
