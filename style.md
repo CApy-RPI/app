@@ -256,8 +256,8 @@ class UserProfileCog(commands.Cog):
 - Ensure all tests pass and code is formatted before committing:
 
 ```bash
-pytest
-black .
+py test.py
+black ${filename}
 ```
 
 ---

@@ -27,7 +27,7 @@ class Database:
         mongodb_name = os.environ.get("MONGODB_NAME")
         if not mongodb_name:
             raise AssertionError("MONGODB_NAME environment variable is not set.")
-        
+
         self.__client = client or AsyncIOMotorClient(mongodb_uri)
         self.__db = self.__client.get_database(mongodb_name)
 
