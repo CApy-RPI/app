@@ -7,21 +7,33 @@
 Maintain a clear, modular folder layout:
 
 ```plaintext
-discord_bot/
+capy/
 ├── src/
-│   ├── cogs/                  # Separate modules for bot commands/features
-│   ├── db/                    # Database models and connection utilities
-│   ├── modules/               # Additional modules for extended functionalities
-│   ├── resources/             # Static resources like images, JSON files, etc.
-│   ├── utils/                 # Utility/helper functions
-│   ├── config.py              # Configuration constants
-│   └── main.py                # Entry point of the bot
-├── tests/                     # Unit and integration tests
-├── .env                       # Environment variables and secrets
-├── requirements.txt           # Python dependencies
-├── style.md                   # Coding style guide
-├── test.md                    # Testing script
-└── updater.py                 # Script for updating host
+│   ├── capy_backend/  
+│   │   ├── db/                    # Database models and connection utilities
+│   │   ├── mods/                  # Additional modules for extended functionalities
+│   │   ├── res/                   # Static resources like images, JSON files, etc.
+│   │   ├── utils/                 # Utility/helper functions
+│   ├── capy_discord/  
+│   │   ├── cogs/                  # Separate modules for bot commands/features
+│   │   ├── bot.py
+│   ├── config.py                  # Configuration constants
+│   └── main.py                    # Entry point of the bot
+├── tests/                         # Unit and integration tests
+│   ├── capy_backend/  
+│   │   ├── db/                    # Database models and connection utilities
+│   │   ├── mods/                  # Additional modules for extended functionalities
+│   │   ├── res/                   # Static resources like images, JSON files, etc.
+│   │   ├── utils/                 # Utility/helper functions
+│   ├── capy_discord/  
+│   │   ├── cogs/                  # Separate modules for bot commands/features
+│   │   ├── bot.py
+├── .env                           # Environment variables and secrets
+├── requirements.txt               # Python dependencies
+├── requirements_dev.txt           # Development dependencies
+├── style.md                       # Coding style guide
+├── test.md                        # Testing script
+└── updater.py                     # Script for updating host
 ```
 
 ### 1.2 Code Structure
@@ -32,7 +44,7 @@ discord_bot/
 
 ---
 
-## 2. Naming Conventions
+## 2. Python Conventions
 
 ### 2.1 Variables and Functions
 
@@ -234,81 +246,55 @@ class UserProfileCog(commands.Cog):
 
 ---
 
-## 5. Code Review and Version Control
+## 5. Managing Dependencies
 
-### 5.1 Git Commit Standards
-
-- Use descriptive commit messages:
-
-```plaintext
-[Feature] Add user profile creation functionality
-[Fix] Resolve MongoDB connection issue
-```
-
-### 5.2 Pull Request Guidelines
-
-- Include a clear description of changes.
-- Link to relevant issues.
-- Request at least one reviewer for approval.
-
-### 5.3 Mandatory Testing and Formatting
-
-- Ensure all tests pass and code is formatted before committing:
-
-```bash
-pytest
-black .
-```
-
----
-
-## 6. Development Practices
-
-### 6.1 Testing
-
-- Use **pytest** for unit testing.
-
-```python
-def test_user_profile_creation():
-    # Arrange
-    test_user_id = "123"
-    test_data = {"name": "Jane Doe"}
-
-    # Act
-    db.create_user(test_user_id, test_data)
-
-    # Assert
-    assert db.get_user(test_user_id)["name"] == "Jane Doe"
-```
-
-### 6.2 Configurations
-
-- Store sensitive data (e.g., tokens, database credentials) in environment variables or `.env` files.
-- **Never** hard-code or link any sensitive data to any file that will be uploaded.
-
-### 6.3 Dependency Management
+### 5.1 Dependency Management
 
 - Use a virtual environment to manage dependencies:
 
 ```bash
 python -m venv venv
 source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-pip install -r requirements.txt
 ```
 
-### 6.4 Code Formatting
+### 5.2 Installing Requirements
 
-- Use **black** for automatic code formatting:
+- Use `requirements.txt` for production dependencies and `requirements_dev.txt` for development dependencies:
 
 ```bash
-black .
+# Install production dependencies
+pip install -r requirements.txt
+
+# Install development dependencies
+pip install -r requirements_dev.txt
+```
+
+### 5.3 requirements.txt vs requirements_dev.txt
+
+- `requirements.txt`: Contains the dependencies required for the application to run in production.
+- `requirements_dev.txt`: Contains additional dependencies required for development, such as testing and linting tools.
+
+Example `requirements.txt`:
+
+```plaintext
+discord.py
+pymongo
+```
+
+Example `requirements_dev.txt`:
+
+```plaintext
+pytest
+flake8
+black
+mypy
 ```
 
 ---
 
-## 7. Imports
+## 6. Imports
 
-### 7.1 Minimize Imports
+### 6.1 Minimize Imports
 
 - Minimize the use of `from library import a, b, c, d`. Instead, import the entire module and use it with the module name to avoid namespace conflicts:
 
@@ -322,7 +308,7 @@ from os import path, mkdir, remove
 from sys import argv, exit
 ```
 
-### 7.2 Import Order
+### 6.2 Import Order
 
 - Follow the standard import order: standard library imports, third-party imports, and local imports. Separate each group with a blank line:
 
@@ -340,20 +326,94 @@ from .utils import helper_function
 
 ---
 
-## 8. Module Initialization
+## 7. Module Initialization
 
-### 8.1 Creating `__init__.py` Files
+### 7.1 Creating `__init__.py` Files
 
 - When adding new scripts to a module, ensure that the module's directory contains an `__init__.py` file. This file can be empty or used to initialize the module.
 
-### 8.2 Maintaining `__init__.py` Files
+---
 
-- Update the `__init__.py` file to include any new scripts or submodules. This helps in maintaining a clean and organized module structure:
+## 8. Pre-Push Checklist
 
-```python
-# Example __init__.py for the utils module
-from .logger import Logger
-from .config_loader import ConfigLoader
+Before pushing your code to the repository, ensure the following steps are completed:
+
+### 8.1 Code Formatting with Black
+
+- Use **black** to automatically format your code files:
+
+```bash
+# Install black if not already installed
+pip install black
+
+# Format your code files
+black path/to/your/code/file.py
 ```
+
+### 8.2 Linting with Flake8
+
+- Use **flake8** to check for style guide enforcement and code quality issues in your code files:
+
+```bash
+# Install flake8 if not already installed
+pip install flake8
+
+# Run flake8 on your code files
+flake8 path/to/your/code/file.py
+```
+
+### 8.3 Type Checking with Mypy
+
+- Use **mypy** for static type checking in your code files:
+
+```bash
+# Install mypy if not already installed
+pip install mypy
+
+# Run mypy on your code files
+mypy path/to/your/code/file.py
+```
+
+### 8.4 Running Tests with Pytest
+
+- Use **pytest** for running unit tests:
+
+```bash
+# Install pytest if not already installed
+pip install pytest
+
+# Run all tests
+pytest
+```
+
+### 8.5 Pushing to the Repository
+
+- Ensure all tests pass and code is properly formatted and linted before pushing:
+
+```bash
+# Add changes to the staging area
+git add .
+
+# Commit changes with a descriptive message
+git commit -m "[Description of changes]"
+
+# Push changes to the repository
+git push origin [branch-name]
+```
+
+- Use descriptive commit messages:
+
+```plaintext
+[Feature] Add user profile creation functionality
+[Fix] Resolve MongoDB connection issue
+```
+
+---
+
+## 9. Pull Request Guidelines
+
+- Include a clear description of changes.
+- Link to relevant issues.
+- Request at least one reviewer for approval.
 
 ---
