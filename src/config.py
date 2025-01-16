@@ -8,4 +8,4 @@ DEV_BOT_TOKEN = os.getenv("DEV_BOT_TOKEN")
 MONGO_URI = os.getenv("MONGO_URI")
 MONGO_DBNAME = os.getenv("MONGO_DBNAME")
 
-DATA_TEMPLATE_PATH = "src/processing/resources/template"
+DATA_TEMPLATE_PATH = "src/capy_backend/res/template"

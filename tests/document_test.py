@@ -1,6 +1,6 @@
 import pytest
-from processing.db import Document
-from processing.modules import Timestamp
+from capy_backend.db import Document
+from capy_backend.mods import Timestamp
 
 
 @pytest.fixture

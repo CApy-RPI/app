@@ -1,7 +1,7 @@
 import json
 import typing
 
-from processing.modules import Timestamp
+from capy_backend.mods import Timestamp
 
 from .collection import Collection
 from .templates import templates

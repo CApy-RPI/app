@@ -3,10 +3,11 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
-addopts = "--cov=processing"
+addopts = "--cov=src/capy_backend"
 testpaths = [
     "tests",
 ]
+
 
 [tool.mypy]
 mypy_path = "src"
