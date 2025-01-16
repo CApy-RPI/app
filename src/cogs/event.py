@@ -3,12 +3,14 @@ import discord
 from datetime import datetime, timezone
 from discord.ext import commands
 from modules.timestamp import now, format_time, get_timezone, localize_datetime
+from discord import RawReactionActionEvent
 
 
 class Events(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.bot.logger.info("Event cog initialized.")
+        self.allowed_reactions = ["✅", "❌", "❔"]
 
     @commands.group(name="events", help="Access/Modify Event data.")
     async def events(self, ctx):
@@ -322,8 +324,12 @@ class Events(commands.Cog):
         self.bot.logger.info(
             f"User {ctx.author} is clearing all events for guild {ctx.guild.id}."
         )
+        self.bot.logger.info(
+            f"User {ctx.author} is clearing all events for guild {ctx.guild.id}."
+        )
 
         # Soft delete all future events associated with this guild
+        self.bot.db.bulk_soft_delete_cutoff("event", now())
         self.bot.db.bulk_soft_delete_cutoff("event", now())
 
         # Create an embed to confirm the events have been cleared
@@ -332,6 +338,301 @@ class Events(commands.Cog):
         # Send the embed confirmation message
         await ctx.send(embed=embed)
         self.bot.logger.info("All events cleared successfully.")
+
+    #! RESTRICT REGULAR MEMBERS FROM USING THIS FEATURE
+    # Shows admin all the users who are registered for a specific event
+    @commands.command(
+        name="attendance",
+        help="Shows attendance for a specific event (Admin Only). Usage: !attendance [event id]",
+    )
+    async def show_event_attendance(self, ctx, message_id: int):
+        """ "Displays attendance for a specific event"""
+        guild_data = self.bot.db.get_data("guild", ctx.guild.id)
+        event = next(
+            (
+                event
+                for event in guild_data.get_value("event")
+                if event["id"] == event_id
+            ),
+            None,
+        )
+
+        if not event or not event.get("user"):
+            await ctx.send("Event not found")
+            return
+
+        attendees = [self.bot.get_user(user_id).name for user_id in event["user"]]
+        attendee_list = "\n".join(attendees) if attendees else "No attendees yet."
+
+        embed = discord.Embed(
+            title="Event Attendance",
+            description=f"**Event ID:** {event_id}",
+            color=discord.Color.green(),
+        )
+        embed.add_field(name="Attendees", value=attendee_list, inline=False)
+
+        await ctx.send(embed=embed)
+
+    @commands.command(
+        name="announce",
+        help="Announces an event in the announcements channel. Usage: !announce [event id]",
+    )
+    async def announce(self, ctx, event_id: int):
+        """
+        Announces an event in the announcements channel
+        """
+
+        # Get event data from the database
+        event = self.bot.db.get_data("event", event_id)
+
+        if not event:
+            await ctx.send("ERROR: Event not found.")
+            return
+
+        # Find the #announcements channel
+        announcement_channel = discord.utils.get(
+            ctx.guild.text_channels, name="announcements"
+        )
+
+        # Create it if it doesn't exist
+        if announcement_channel is None:
+            try:
+                # Create the #announcements channel with permissions allowing only the bot to send messages
+                announcement_channel = await ctx.guild.create_text_channel(
+                    "announcements"
+                )
+                await announcement_channel.set_permissions(
+                    ctx.guild.default_role, send_messages=False
+                )
+                await announcement_channel.set_permissions(
+                    ctx.guild.me, send_messages=True
+                )
+            except discord.Forbidden:
+                await ctx.send("ERROR: I do not have permission to create channels.")
+                return
+        else:
+            # If the channel already exists, ensure permissions are set correctly
+            await announcement_channel.set_permissions(
+                ctx.guild.default_role, send_messages=False
+            )
+            await announcement_channel.set_permissions(ctx.guild.me, send_messages=True)
+
+        # Create the embed for announcements
+        embed = discord.Embed(
+            title="Event Announcement",
+            description=f"**Event:** {event.get_value('name')}\n**Date/Time:** {event.get_value('datetime')}\n**Location:** {event.get_value('location')}\n\nReact with ✅ to attend, ❌ to decline, or ❔ for maybe.",
+            color=discord.Color.purple(),
+        )
+
+        try:
+            # Send announcement to the channel and add reactions for attendance
+            message = await announcement_channel.send(embed=embed)
+            await message.add_reaction("✅")  # Add reaction for attendance
+            await message.add_reaction("❌")  # Add reaction for decline
+            await message.add_reaction("❔")  # Add reaction for maybe
+            event.set_value("message_id", message.id)
+
+            # Update event data
+            self.bot.db.upsert_data(event)
+
+            await ctx.send(f"Event announced in #{announcement_channel.name}!")
+
+            self.bot.logger.info(
+                f"Event announced successfully in #{announcement_channel.name} with message ID {message.id}. NUM 7"
+            )  #! Debug statement 7
+        except discord.Forbidden:
+            await ctx.send(
+                "ERROR: I do not have permission to send messages or add reactions in the announcements channel."
+            )
+
+    # Function to handle adding attendance on reaction
+    async def reaction_attendance_add(self, user_id, message_id):
+        """Adds user to event attendance list."""
+
+        #! fix the reactions, remove "yes" when a user changes their mind from no
+
+        # Pull the user data
+        user_data = self.bot.db.get_data("user", user_id)
+        if not user_data:
+            self.bot.logger.warning(
+                f"reaction_attendance_add: User ID {user_id} not found."
+            )
+            return
+
+        all_event_data = self.bot.db.get_paginated_data("event", 1, 10)
+
+        # Not efficient search method for large data
+        for row in all_event_data:
+            if row.get_value("message_id") == message_id:
+                event_id = row.get_value("id")
+                break
+
+        event_data = self.bot.db.get_data("event", event_id)
+
+        if event_id in user_data.get_value("event"):
+            self.bot.logger.warning(
+                f"User ID {user_id} has already signed up for event ID {event_id}. No need to re-add."
+            )
+            return
+
+        # Access the "reactions" field
+        reactions = event_data.get_value("reactions")
+        if reactions and isinstance(reactions, dict):
+            # Increment the "yes" count
+            reactions["yes"] += 1
+            print(f"Updated Reactions: {reactions}")
+
+            # Update the event data with the modified reactions
+            event_data.set_value("reactions", reactions)
+        else:
+            self.bot.logger.warning(f"Invalid reactions field in event ID {event_id}.")
+            return
+
+        # Update the "user" key in the event's JSON data with user_id
+        event_data.append_value("user", user_id)
+
+        # Save the updated event data back to the database
+        self.bot.db.upsert_data(event_data)
+
+        # Update the "event" key in the user's JSON data with the event_id
+        user_data.append_value("event", event_id)
+
+        # Save the updated data back to the database
+        self.bot.db.upsert_data(user_data)
+        self.bot.logger.info(f"User {user_id} updated with event {event_id}.")
+
+    # Function to handle removing attendance on reaction
+    async def reaction_attendance_remove(self, user_id, message_id):
+        """
+        Removes user from event attendance list.
+        """
+
+        user_data = self.bot.db.get_data("user", user_id)
+        if not user_data:
+            self.bot.logger.warning(
+                f"reaction_attendance_remove: User ID {user_id} not found."
+            )
+            return
+
+        all_event_data = self.bot.db.get_paginated_data("event", 1, 10)
+
+        # Not efficient search method for large data
+        for row in all_event_data:
+            if row.get_value("message_id") == message_id:
+                event_id = row.get_value("id")
+                break
+
+        event_data = self.bot.db.get_data("event", event_id)
+
+        # Access the "reactions" field
+        reactions = event_data.get_value("reactions")
+        if reactions and isinstance(reactions, dict):
+            # Increment the "no" count
+            reactions["no"] += 1
+
+            # Update the event data with the modified reactions
+            event_data.set_value("reactions", reactions)
+        else:
+            self.bot.logger.warning(f"Invalid reactions field in event ID {event_id}.")
+            return
+
+        # Check if the event is already removed or blank, do not remove again
+        if event_id not in user_data.get_value("event"):
+            self.bot.logger.info(
+                f"User {user_id} is not attending event {event_id}, no need to remove."
+            )
+        else:
+            user_data.remove_value("event", event_id)
+            self.bot.logger.info(
+                f"Event {event_id} has been removed from user {user_id}'s events."
+            )
+
+        if user_id not in event_data.get_value("user"):
+            self.bot.logger.info(
+                f"User {user_id} is not attending event {event_id}, no need to remove."
+            )
+        else:
+            event_data.remove_value("user", user_id)
+            self.bot.logger.info(
+                f"User {user_id} has been removed from event {event_id}'s users."
+            )
+            if reactions and isinstance(reactions, dict):
+                reactions["yes"] -= 1
+                print(f"Updated Reactions: {reactions}")
+
+        # Save the updated data back to the database
+        self.bot.db.upsert_data(user_data)
+        self.bot.db.upsert_data(event_data)
+
+    # Function to handle adding maybe to reaction
+    async def reaction_attendance_maybe(self, user_id, message_id):
+        """
+        Increment the "maybe" count in the event's JSON data.
+        """
+
+        user_data = self.bot.db.get_data("user", user_id)
+        if not user_data:
+            self.bot.logger.warning(
+                f"reaction_attendance_maybe: User ID {user_id} not found."
+            )
+            return
+
+        all_event_data = self.bot.db.get_paginated_data("event", 1, 10)
+
+        # Not efficient search method for large data
+        for row in all_event_data:
+            if row.get_value("message_id") == message_id:
+                event_id = row.get_value("id")
+                break
+
+        event_data = self.bot.db.get_data("event", event_id)
+
+        # Access the "reactions" field
+        reactions = event_data.get_value("reactions")
+        if reactions and isinstance(reactions, dict):
+            # Increment the "maybe" count
+            reactions["maybe"] += 1
+            self.logger.bot.info(f"Updated Reactions: {reactions}")
+
+            # Update the event data with the modified reactions
+            event_data.set_value("reactions", reactions)
+        else:
+            self.bot.logger.warning(f"Invalid reactions field in event ID {event_id}.")
+            return
+
+        self.bot.db.upsert_data(user_data)
+        self.bot.db.upsert_data(event_data)
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload):
+        """
+        Listens for reaction to event announcements and calls the appropriate function.
+
+        Handle adding a reaction to limit users to only one option.
+        """
+
+        # Ensure this is not the bot's reaction
+        if payload.user_id == self.bot.user.id:
+            return
+
+        # Fetch the message where the reaction was added
+        channel = self.bot.get_channel(payload.channel_id)
+        message = await channel.fetch_message(payload.message_id)
+
+        # Get the user's previous reactions on the message
+        for reaction in message.reactions:
+            if reaction.emoji != payload.emoji.name and payload.user_id in [
+                user.id async for user in reaction.users()
+            ]:
+                # Remove the user's previous reaction if it's different from the new one
+                await reaction.remove(self.bot.get_user(payload.user_id))
+
+        if payload.emoji.name == "✅":
+            await self.reaction_attendance_add(payload.user_id, payload.message_id)
+        elif payload.emoji.name == "❌":
+            await self.reaction_attendance_remove(payload.user_id, payload.message_id)
+        elif payload.emoji.name == "❔":
+            await self.reaction_attendance_maybe(payload.user_id, payload.message_id)
 
 
 # Setup function to load the cog
