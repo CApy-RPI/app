@@ -14,10 +14,10 @@ discord_bot/
 │   ├── modules/               # Additional modules for extended functionalities
 │   ├── resources/             # Static resources like images, JSON files, etc.
 │   ├── utils/                 # Utility/helper functions
-│   ├── config.py              # Configuration file
+│   ├── config.py              # Configuration constants
 │   └── main.py                # Entry point of the bot
 ├── tests/                     # Unit and integration tests
-├── .env                       # Environment variables
+├── .env                       # Environment variables and secrets
 ├── requirements.txt           # Python dependencies
 ├── style.md                   # Coding style guide
 ├── test.md                    # Testing script
@@ -256,8 +256,8 @@ class UserProfileCog(commands.Cog):
 - Ensure all tests pass and code is formatted before committing:
 
 ```bash
-py test.py
-black ${filename}
+pytest
+black .
 ```
 
 ---
@@ -302,6 +302,58 @@ pip install -r requirements.txt
 
 ```bash
 black .
+```
+
+---
+
+## 7. Imports
+
+### 7.1 Minimize Imports
+
+- Minimize the use of `from library import a, b, c, d`. Instead, import the entire module and use it with the module name to avoid namespace conflicts:
+
+```python
+# Good
+import os
+import sys
+
+# Bad
+from os import path, mkdir, remove
+from sys import argv, exit
+```
+
+### 7.2 Import Order
+
+- Follow the standard import order: standard library imports, third-party imports, and local imports. Separate each group with a blank line:
+
+```python
+# Standard library imports
+import os
+import sys
+
+# Third-party imports
+import requests
+
+# Local imports
+from .utils import helper_function
+```
+
+---
+
+## 8. Module Initialization
+
+### 8.1 Creating `__init__.py` Files
+
+- When adding new scripts to a module, ensure that the module's directory contains an `__init__.py` file. This file can be empty or used to initialize the module.
+
+### 8.2 Maintaining `__init__.py` Files
+
+- Update the `__init__.py` file to include any new scripts or submodules. This helps in maintaining a clean and organized module structure:
+
+```python
+# Example __init__.py for the utils module
+from .logger import Logger
+from .config_loader import ConfigLoader
 ```
 
 ---

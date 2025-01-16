@@ -1,0 +1,16 @@
+{
+    "_id": null,
+    "users": [],
+    "events": [],
+    "channels": {
+        "reports": "",
+        "announcements": "",
+        "moderator": ""
+    },
+    "roles": {
+        "eboard": "",
+        "admin": "",
+        "member": ""
+    }
+    
+}

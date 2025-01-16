@@ -1,0 +1,17 @@
+{
+    "_id": null,
+    "users": [],
+    "guild_id": null,
+    "message_id": null,
+    "data": {
+        "name": "",
+        "datetime": "",
+        "location": "",
+        "description": "",
+        "reactions": {
+            "yes": 0,
+            "no": 0,
+            "maybe": 0
+        }
+    }
+}

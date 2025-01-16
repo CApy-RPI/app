@@ -1,0 +1,17 @@
+{
+    "_id": null,
+    "guilds": [],
+    "events": [],
+    "profile": {
+        "name": {
+            "first": "",
+            "middle": "",
+            "last": ""
+        },
+        "school_email": "",
+        "student_id": "",
+        "major": [],
+        "graduation_year": null,
+        "phone": ""
+    }
+}
